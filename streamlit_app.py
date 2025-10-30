@@ -55,6 +55,19 @@ st.markdown("""
         border-radius: 0 8px 8px 0;
         margin: 16px 0;
     }
+    .alert-box {
+        background: #fff5f5;
+        border-left: 4px solid #e53e3e;
+        padding: 12px;
+        border-radius: 0 8px 8px 0;
+        margin: 16px 0;
+    }
+    .new-age-container {
+        background: linear-gradient(135deg, #f0f9ff, #e6f7ff);
+        padding: 20px;
+        border-radius: 16px;
+        margin: 20px 0;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -123,9 +136,9 @@ datasets = {
     "visits": load_csv(find_file("DeepEllumVisits") or find_file("WeeklyVisits")) if find_file("DeepEllumVisits") or find_file("WeeklyVisits") else pd.DataFrame(),
     "bike_ped": load_csv(find_file("bike_pedestrian") or find_file("bike") or find_file("pedestrian")) if find_file("bike_pedestrian") or find_file("bike") or find_file("pedestrian") else pd.DataFrame(),
     "txdot": load_csv(find_file("TxDOT")) if find_file("TxDOT") else pd.DataFrame(),
-    "weather": load_csv(find_file("DeepWeather")) if find_file("DeepWeather") else pd.DataFrame(),
+    "weather": load_csv(find_file("DeepWeather") or find_file("weather")) if find_file("DeepWeather") or find_file("weather") else pd.DataFrame(),
     "service": load_csv(find_file("311") or find_file("service")) if find_file("311") or find_file("service") else pd.DataFrame(),
-    "arrests": load_csv(find_file("arrests")) if find_file("arrests") else pd.DataFrame(),
+    "arrests": load_csv(find_file("arrests") or find_file("crime") or find_file("police")) if find_file("arrests") or find_file("crime") or find_file("police") else pd.DataFrame(),
 }
 
 # ------------------ Executive Dashboard ------------------
@@ -173,6 +186,22 @@ with col4:
         <div class="metric-label">Public Safety Incidents</div>
     </div>
     """, unsafe_allow_html=True)
+
+# Automated Alerts
+if not datasets["arrests"].empty:
+    arrest_date_col = detect_col(datasets["arrests"], "date", "datetime")
+    arrest_loc_col = detect_col(datasets["arrests"], "location", "area", "address")
+    arrest_cat_col = detect_col(datasets["arrests"], "offense", "crime", "category")
+    
+    if arrest_date_col:
+        recent_arrests = datasets["arrests"][datasets["arrests"][arrest_date_col] >= (datetime.now() - timedelta(days=7))]
+        if len(recent_arrests) > 0:
+            st.markdown(f"""
+            <div class="alert-box">
+                ⚠️ <strong>ALERT:</strong> {len(recent_arrests)} arrests recorded in Deep Ellum in the last 7 days. 
+                <a href="#" target="_blank">View Details</a>
+            </div>
+            """, unsafe_allow_html=True)
 
 st.markdown('<div class="insight-box">💡 <strong>Insight:</strong> Real-time urban analytics for Deep Ellum — enabling data-driven decisions for businesses, city planners, and investors.</div>', unsafe_allow_html=True)
 
@@ -261,7 +290,7 @@ with tab3:
     # Arrests
     if not datasets["arrests"].empty:
         cat_col = detect_col(datasets["arrests"], "offense", "crime", "category")
-        loc_col = detect_col(datasets["arrests"], "location", "area")
+        loc_col = detect_col(datasets["arrests"], "location", "area", "address")
         
         if cat_col:
             top_offenses = datasets["arrests"][cat_col].value_counts().head(8)

@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
+from pathlib import Path
 
 st.set_page_config(page_title="Krowd Guide: Deep Ellum Foot Traffic", layout="wide")
 st.title("📍 Deep Ellum Venue Foot Traffic Dashboard")
@@ -10,8 +11,17 @@ st.title("📍 Deep Ellum Venue Foot Traffic Dashboard")
 @st.cache_data
 def load_data():
     try:
-        df = pd.read_csv("data/DeepEllumVisits")
+        # Automatically find the data file
+        base_dir = Path(__file__).resolve().parent
+        file_path = base_dir / "data" / "DeepEllumVisits.csv"
+
+        if not file_path.exists():
+            st.error(f"❌ File not found: {file_path}")
+            return pd.DataFrame()
+
+        df = pd.read_csv(file_path)
         return df
+
     except Exception as e:
         st.error(f"❌ Error loading data: {e}")
         return pd.DataFrame()  # empty fallback
@@ -19,7 +29,7 @@ def load_data():
 df = load_data()
 
 if df.empty:
-    st.warning("⚠️ No data loaded. Please check that 'data/DeepEllumVisits.csv' exists.")
+    st.warning("⚠️ No data loaded. Please check that 'data/DeepEllumVisits.csv' exists in the 'data' folder.")
     st.stop()
 
 # 🧭 Detect possible venue column automatically
@@ -60,19 +70,4 @@ if "visits" not in filtered_df.columns:
 else:
     fig, ax = plt.subplots()
     sns.lineplot(
-        data=filtered_df,
-        x=weeks_col,
-        y="visits",
-        hue=venue_col,
-        marker="o",
-        ax=ax
-    )
-    ax.set_title("Foot Traffic Over Time")
-    ax.set_ylabel("Visits")
-    ax.set_xlabel("Week Start")
-    plt.xticks(rotation=45)
-    st.pyplot(fig)
-
-# 📄 Raw Data Viewer
-with st.expander("📄 Show Raw Data"):
-    st.dataframe(filtered_df)
+        data=filtered_d_

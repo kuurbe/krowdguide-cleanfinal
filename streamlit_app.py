@@ -15,7 +15,7 @@ def load_data():
 df = load_data()
 
 # 🧭 Sidebar Filters
-venues = sorted(df["venue_name"].unique())
+venues = sorted(df["venue"].unique())
 weeks = sorted(df["week_start_iso"].unique())
 
 selected_venue = st.sidebar.selectbox("Select Venue", ["All"] + venues)
@@ -24,14 +24,14 @@ selected_week = st.sidebar.selectbox("Select Week", ["All"] + weeks)
 # 🔄 Apply Filters
 filtered_df = df.copy()
 if selected_venue != "All":
-    filtered_df = filtered_df[filtered_df["venue_name"] == selected_venue]
+    filtered_df = filtered_df[filtered_df["venue"] == selected_venue]
 if selected_week != "All":
     filtered_df = filtered_df[filtered_df["week_start_iso"] == selected_week]
 
 # 📈 Foot Traffic Trend
 st.subheader("📈 Weekly Foot Traffic")
 fig, ax = plt.subplots()
-sns.lineplot(data=filtered_df, x="week_start_iso", y="visits", hue="venue_name", marker="o", ax=ax)
+sns.lineplot(data=filtered_df, x="week_start_iso", y="visits", hue="venue", marker="o", ax=ax)
 ax.set_title("Foot Traffic Over Time")
 ax.set_ylabel("Visits")
 ax.set_xlabel("Week Start")

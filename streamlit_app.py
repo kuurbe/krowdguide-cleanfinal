@@ -1,7 +1,7 @@
 # streamlit_app.py
 import os
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 import io
 
 import streamlit as st
@@ -12,6 +12,10 @@ import matplotlib.pyplot as plt
 import humanize
 import plotly.express as px
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+from sklearn.linear_model import LinearRegression
+from sklearn.preprocessing import PolynomialFeatures
+from sklearn.pipeline import make_pipeline
 
 # ------------------ App Config ------------------
 st.set_page_config(
@@ -128,6 +132,47 @@ def pick_by_name(substr: str):
             return p
     return None
 
+def predict_weather(df, date_col, temp_col, days=30):
+    """Generate weather predictions using polynomial regression"""
+    if date_col and temp_col:
+        df_clean = df[[date_col, temp_col]].dropna()
+        df_clean[date_col] = pd.to_datetime(df_clean[date_col])
+        df_clean = df_clean.sort_values(date_col)
+        
+        # Convert dates to numeric for regression
+        df_clean['days'] = (df_clean[date_col] - df_clean[date_col].min()).dt.days
+        
+        # Prepare data
+        X = df_clean[['days']].values
+        y = df_clean[temp_col].values
+        
+        # Train polynomial model
+        model = make_pipeline(PolynomialFeatures(degree=3), LinearRegression())
+        model.fit(X, y)
+        
+        # Generate future dates
+        last_date = df_clean[date_col].max()
+        future_dates = [last_date + timedelta(days=i) for i in range(1, days+1)]
+        future_days = [(d - df_clean[date_col].min()).days for d in future_dates]
+        future_X = np.array(future_days).reshape(-1, 1)
+        
+        # Predict
+        predictions = model.predict(future_X)
+        
+        # Create prediction dataframe
+        pred_df = pd.DataFrame({
+            date_col: future_dates,
+            temp_col: predictions,
+            'type': 'predicted'
+        })
+        
+        # Add actual data
+        actual_df = df_clean[[date_col, temp_col]].copy()
+        actual_df['type'] = 'actual'
+        
+        return pd.concat([actual_df, pred_df], ignore_index=True)
+    return df
+
 # ------------------ Named datasets (best-effort) ------------------
 PATH_VISITS   = pick_by_name("DeepEllumVisits") or pick_by_name("WeeklyVisits")
 PATH_ARRESTS  = pick_by_name("arrests")
@@ -160,7 +205,9 @@ if page == "Dashboard":
         'arrests': (PATH_ARRESTS, "Arrests"),
         'service': (PATH_SERVICE, "Service Requests"),
         'traffic': (PATH_TRAFFIC, "Traffic Records"),
-        'weather': (PATH_WEATHER, "Weather Data")
+        'weather': (PATH_WEATHER, "Weather Data"),
+        'bike_ped': (PATH_BIKE_PED, "Bike/Ped Traffic"),
+        'txdot': (PATH_TXDOT, "TxDOT Data")
     }
     
     loaded_data = {}
@@ -233,12 +280,24 @@ if page == "Dashboard":
             fig.update_layout(yaxis={'categoryorder':'total ascending'})
             st.plotly_chart(fig, use_container_width=True)
 
-    # Weather Snapshot (optional)
+    # Weather Snapshot with Predictions
     if not loaded_data['weather'].empty:
-        st.markdown("#### Weather Snapshot")
+        st.markdown("#### Weather Forecast")
+        dcol = detect_col(loaded_data['weather'], "date", "datetime", "timestamp", prefer_startswith=True)
         tcol = detect_col(loaded_data['weather'], "temperature", "temp", "temp_f", "temp_c")
         pcol = detect_col(loaded_data['weather'], "precip", "rain", "precipitation")
         hcol = detect_col(loaded_data['weather'], "humidity")
+        
+        if dcol and tcol:
+            # Predict weather
+            pred_df = predict_weather(loaded_data['weather'], dcol, tcol)
+            
+            fig = px.line(pred_df, x=dcol, y=tcol, color='type',
+                         title="Temperature Forecast",
+                         labels={dcol: "Date", tcol: "Temperature (°F)"})
+            fig.update_layout(xaxis_title="Date", yaxis_title="Temperature (°F)")
+            st.plotly_chart(fig, use_container_width=True)
+        
         cols = st.columns(3)
         with cols[0]:
             if tcol: st.metric("Last Temperature", f"{loaded_data['weather'][tcol].dropna().iloc[-1]:.1f}°F")
@@ -253,7 +312,7 @@ elif page == "Mobility":
     
     # Load all mobility data
     mobility_data = {}
-    for key, path in [('visits', PATH_VISITS), ('traffic', PATH_TRAFFIC), ('bike_ped', PATH_BIKE_PED)]:
+    for key, path in [('visits', PATH_VISITS), ('traffic', PATH_TRAFFIC), ('bike_ped', PATH_BIKE_PED), ('txdot', PATH_TXDOT)]:
         if path:
             mobility_data[key] = load_csv(path)
         else:
@@ -261,16 +320,20 @@ elif page == "Mobility":
     
     # Summary metrics
     st.markdown("#### Mobility Metrics")
-    m1, m2, m3 = st.columns(3)
+    m1, m2, m3, m4 = st.columns(4)
     with m1:
         st.metric("Foot Traffic Records", f"{len(mobility_data['visits']):,}")
     with m2:
         st.metric("Traffic Records", f"{len(mobility_data['traffic']):,}")
     with m3:
         st.metric("Bike/Ped Records", f"{len(mobility_data['bike_ped']):,}")
+    with m4:
+        st.metric("TxDOT Records", f"{len(mobility_data['txdot']):,}")
     
     # Combined mobility chart
     st.markdown("#### Combined Mobility Trends")
+    
+    # Foot Traffic
     if not mobility_data['visits'].empty:
         wk = detect_col(mobility_data['visits'], "week_start_iso", "week")
         vcol = detect_col(mobility_data['visits'], "visits")
@@ -282,6 +345,7 @@ elif page == "Mobility":
             fig.update_layout(xaxis_title="Week", yaxis_title="Visits")
             st.plotly_chart(fig, use_container_width=True)
     
+    # Traffic Volume
     if not mobility_data['traffic'].empty:
         date_col = detect_col(mobility_data['traffic'], "date", "day", prefer_startswith=True)
         vol_col = detect_col(mobility_data['traffic'], "volume", "count", "avg")
@@ -292,13 +356,37 @@ elif page == "Mobility":
             fig.update_layout(xaxis_title="Date", yaxis_title="Volume")
             st.plotly_chart(fig, use_container_width=True)
     
+    # Bike/Ped Traffic
     if not mobility_data['bike_ped'].empty:
         x = detect_col(mobility_data['bike_ped'], "date", "day", prefer_startswith=True)
         y = detect_col(mobility_data['bike_ped'], "count", "avg", "volume")
+        loc = detect_col(mobility_data['bike_ped'], "location", "area", "zone")
         if x and y:
-            fig = px.line(mobility_data['bike_ped'], x=x, y=y,
-                         title="Bike/Ped Counts Over Time",
-                         markers=True)
+            if loc:
+                fig = px.line(mobility_data['bike_ped'], x=x, y=y, color=loc,
+                             title="Bike/Ped Traffic by Location",
+                             markers=True)
+            else:
+                fig = px.line(mobility_data['bike_ped'], x=x, y=y,
+                             title="Bike/Ped Counts Over Time",
+                             markers=True)
+            fig.update_layout(xaxis_title="Date", yaxis_title="Count")
+            st.plotly_chart(fig, use_container_width=True)
+    
+    # TxDOT Data
+    if not mobility_data['txdot'].empty:
+        date_col = detect_col(mobility_data['txdot'], "date", "week", "datetime", prefer_startswith=True)
+        metric = detect_col(mobility_data['txdot'], "count", "closures", "incidents", "events")
+        loc = detect_col(mobility_data['txdot'], "location", "area", "zone")
+        if date_col and metric:
+            if loc:
+                fig = px.line(mobility_data['txdot'], x=date_col, y=metric, color=loc,
+                             title="TxDOT Incidents by Location",
+                             markers=True)
+            else:
+                fig = px.line(mobility_data['txdot'], x=date_col, y=metric,
+                             title="TxDOT Incidents Over Time",
+                             markers=True)
             fig.update_layout(xaxis_title="Date", yaxis_title="Count")
             st.plotly_chart(fig, use_container_width=True)
 
@@ -324,9 +412,13 @@ elif page == "Public Safety":
     
     # Combined safety chart
     st.markdown("#### Public Safety Trends")
+    
+    # Arrests
     if not safety_data['arrests'].empty:
         cat = detect_col(safety_data['arrests'], "offense", "charge", "category")
         date_col = detect_col(safety_data['arrests'], "date", "arrest", "datetime", prefer_startswith=True)
+        loc = detect_col(safety_data['arrests'], "location", "area", "zone")
+        
         if cat:
             st.markdown("**Top Offenses**")
             vc = safety_data['arrests'][cat].astype("string").str.strip().fillna("⟂ NA").value_counts().head(15).reset_index()
@@ -336,6 +428,7 @@ elif page == "Public Safety":
                         labels={cat: "Offense Type", "count": "Count"})
             fig.update_layout(yaxis={'categoryorder':'total ascending'})
             st.plotly_chart(fig, use_container_width=True)
+        
         if date_col:
             st.markdown("**Arrests Over Time**")
             ts = safety_data['arrests'].groupby(date_col).size().reset_index(name="count")
@@ -344,10 +437,23 @@ elif page == "Public Safety":
                          markers=True)
             fig.update_layout(xaxis_title="Date", yaxis_title="Count")
             st.plotly_chart(fig, use_container_width=True)
+        
+        if loc:
+            st.markdown("**Arrests by Location**")
+            loc_counts = safety_data['arrests'][loc].value_counts().reset_index()
+            loc_counts.columns = [loc, "count"]
+            fig = px.bar(loc_counts, x="count", y=loc, orientation='h',
+                        title="Arrests by Location",
+                        labels={loc: "Location", "count": "Count"})
+            fig.update_layout(yaxis={'categoryorder':'total ascending'})
+            st.plotly_chart(fig, use_container_width=True)
     
+    # Service Requests
     if not safety_data['service'].empty:
         req = detect_col(safety_data['service'], "request", "service", "topic")
         date_col = detect_col(safety_data['service'], "date", "week", "datetime", prefer_startswith=True)
+        loc = detect_col(safety_data['service'], "location", "area", "zone")
+        
         if req:
             st.markdown("**Top Request/Service Categories**")
             vc = safety_data['service'][req].astype("string").str.strip().fillna("⟂ NA").value_counts().head(15).reset_index()
@@ -357,6 +463,7 @@ elif page == "Public Safety":
                         labels={req: "Request Type", "count": "Count"})
             fig.update_layout(yaxis={'categoryorder':'total ascending'})
             st.plotly_chart(fig, use_container_width=True)
+        
         if date_col and req:
             st.markdown("**Requests Trend**")
             trend = (safety_data['service']
@@ -366,6 +473,16 @@ elif page == "Public Safety":
                          title="Service Requests Over Time",
                          markers=True)
             fig.update_layout(xaxis_title="Date", yaxis_title="Count")
+            st.plotly_chart(fig, use_container_width=True)
+        
+        if loc:
+            st.markdown("**Service Requests by Location**")
+            loc_counts = safety_data['service'][loc].value_counts().reset_index()
+            loc_counts.columns = [loc, "count"]
+            fig = px.bar(loc_counts, x="count", y=loc, orientation='h',
+                        title="Service Requests by Location",
+                        labels={loc: "Location", "count": "Count"})
+            fig.update_layout(yaxis={'categoryorder':'total ascending'})
             st.plotly_chart(fig, use_container_width=True)
 
 # ------------------ INFRASTRUCTURE ------------------
@@ -390,9 +507,13 @@ elif page == "Infrastructure":
     
     # Combined infrastructure chart
     st.markdown("#### Infrastructure Trends")
+    
+    # 311 Data
     if not infra_data['service'].empty:
         topic = detect_col(infra_data['service'], "request", "service", "topic")
         status = detect_col(infra_data['service'], "status", "state")
+        loc = detect_col(infra_data['service'], "location", "area", "zone")
+        
         if topic:
             st.markdown("**311 Topics**")
             vc = infra_data['service'][topic].astype("string").fillna("⟂ NA").value_counts().head(15).reset_index()
@@ -402,6 +523,7 @@ elif page == "Infrastructure":
                         labels={topic: "Topic", "count": "Count"})
             fig.update_layout(yaxis={'categoryorder':'total ascending'})
             st.plotly_chart(fig, use_container_width=True)
+        
         if status:
             st.markdown("**Status Distribution**")
             vc = infra_data['service'][status].astype("string").fillna("⟂ NA").value_counts().reset_index()
@@ -409,15 +531,38 @@ elif page == "Infrastructure":
             fig = px.pie(vc, values="count", names=status,
                         title="311 Status Distribution")
             st.plotly_chart(fig, use_container_width=True)
+        
+        if loc:
+            st.markdown("**311 Requests by Location**")
+            loc_counts = infra_data['service'][loc].value_counts().reset_index()
+            loc_counts.columns = [loc, "count"]
+            fig = px.bar(loc_counts, x="count", y=loc, orientation='h',
+                        title="311 Requests by Location",
+                        labels={loc: "Location", "count": "Count"})
+            fig.update_layout(yaxis={'categoryorder':'total ascending'})
+            st.plotly_chart(fig, use_container_width=True)
     
+    # TxDOT Data
     if not infra_data['txdot'].empty:
         date_col = detect_col(infra_data['txdot'], "date", "week", "datetime", prefer_startswith=True)
         metric = detect_col(infra_data['txdot'], "count", "closures", "incidents", "events")
+        loc = detect_col(infra_data['txdot'], "location", "area", "zone")
+        
         if date_col and metric:
             fig = px.line(infra_data['txdot'], x=date_col, y=metric,
                          title="TxDOT Incidents Over Time",
                          markers=True)
             fig.update_layout(xaxis_title="Date", yaxis_title="Count")
+            st.plotly_chart(fig, use_container_width=True)
+        
+        if loc:
+            st.markdown("**TxDOT Incidents by Location**")
+            loc_counts = infra_data['txdot'][loc].value_counts().reset_index()
+            loc_counts.columns = [loc, "count"]
+            fig = px.bar(loc_counts, x="count", y=loc, orientation='h',
+                        title="TxDOT Incidents by Location",
+                        labels={loc: "Location", "count": "Count"})
+            fig.update_layout(yaxis={'categoryorder':'total ascending'})
             st.plotly_chart(fig, use_container_width=True)
 
 # ------------------ SUSTAINABILITY (incl. WEATHER) ------------------
@@ -442,10 +587,13 @@ elif page == "Sustainability":
     
     # Combined sustainability chart
     st.markdown("#### Sustainability Trends")
+    
     # Trees & Green Data
     if not sustainability_data['trees'].empty:
         metric = detect_col(sustainability_data['trees'], "tree", "species", "green", "park")
         count_col = detect_col(sustainability_data['trees'], "count", "number", "qty")
+        loc = detect_col(sustainability_data['trees'], "location", "area", "zone")
+        
         if metric:
             vc = sustainability_data['trees'][metric].astype("string").fillna("⟂ NA").value_counts().head(20).reset_index()
             vc.columns = [metric, "count"]
@@ -455,7 +603,7 @@ elif page == "Sustainability":
             fig.update_layout(yaxis={'categoryorder':'total ascending'})
             st.plotly_chart(fig, use_container_width=True)
     
-    # Weather Data
+    # Weather Data with Predictions
     if not sustainability_data['weather'].empty:
         dcol = detect_col(sustainability_data['weather'], "datetime", "timestamp", "date", "time", prefer_startswith=True)
         tcol = detect_col(sustainability_data['weather'], "temperature", "temp", "temp_f", "temp_c")
@@ -470,6 +618,15 @@ elif page == "Sustainability":
                 except Exception:
                     pass
         
+        # Generate predictions
+        if dcol and tcol:
+            pred_df = predict_weather(sustainability_data['weather'], dcol, tcol)
+            fig = px.line(pred_df, x=dcol, y=tcol, color='type',
+                         title="Temperature Forecast",
+                         labels={dcol: "Date", tcol: "Temperature (°F)"})
+            fig.update_layout(xaxis_title="Date", yaxis_title="Temperature (°F)")
+            st.plotly_chart(fig, use_container_width=True)
+        
         cols = st.columns(3)
         with cols[0]:
             if tcol and not sustainability_data['weather'][tcol].dropna().empty:
@@ -480,27 +637,6 @@ elif page == "Sustainability":
         with cols[2]:
             if hcol and not sustainability_data['weather'][hcol].dropna().empty:
                 st.metric("Last Humidity", f"{sustainability_data['weather'][hcol].dropna().iloc[-1]:.0f}%")
-        
-        # Combined weather chart
-        weather_data = sustainability_data['weather'].copy()
-        if dcol and tcol and pcol and hcol:
-            fig = go.Figure()
-            fig.add_trace(go.Scatter(x=weather_data[dcol], y=weather_data[tcol],
-                                    mode='lines+markers', name='Temperature'))
-            fig.add_trace(go.Scatter(x=weather_data[dcol], y=weather_data[pcol],
-                                    mode='lines+markers', name='Precipitation'))
-            fig.add_trace(go.Scatter(x=weather_data[dcol], y=weather_data[hcol],
-                                    mode='lines+markers', name='Humidity'))
-            fig.update_layout(title="Weather Metrics Over Time",
-                             xaxis_title="Date",
-                             yaxis_title="Value",
-                             hovermode='x unified')
-            st.plotly_chart(fig, use_container_width=True)
-        elif dcol and tcol:
-            fig = px.line(weather_data, x=dcol, y=tcol,
-                         title="Temperature Over Time",
-                         markers=True)
-            st.plotly_chart(fig, use_container_width=True)
 
 # ------------------ DATA EXPLORER ------------------
 elif page == "Data Explorer":
@@ -567,3 +703,12 @@ elif page == "Data Explorer":
 
 # --------------- END ---------------
 st.caption(f"📂 Data directory: `{DATA_DIR}` · {len(CSV_PATHS)} file(s) detected · Preview is limited for speed; downloads are full.")
+EOF
+
+# Initialize git repo and push
+git init
+git add .
+git commit -m "Enhanced Smart City OS with automated reporting and weather predictions"
+git remote add origin https://github.com//kuurbe
+git branch -M main
+git push -u origin main

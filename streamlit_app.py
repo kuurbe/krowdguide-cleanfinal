@@ -75,6 +75,13 @@ st.markdown("""
         border-radius: 16px;
         margin: 20px 0;
     }
+    .data-section {
+        background: white;
+        border-radius: 12px;
+        padding: 20px;
+        margin: 10px 0;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -212,11 +219,11 @@ if not datasets["arrests"].empty:
 
 st.markdown('<div class="insight-box">💡 <strong>Insight:</strong> Real-time urban analytics for Deep Ellum — enabling data-driven decisions for businesses, city planners, and investors.</div>', unsafe_allow_html=True)
 
-# Main Dashboard View
-st.subheader("📊 Deep Ellum Comprehensive View")
+# Simplified Single View Dashboard
+st.subheader("📊 Deep Ellum Comprehensive Intelligence View")
 
-# Weather Trends (using AccuWeather data conceptually)
-st.markdown("### 🌦️ Weather Trends (AccuWeather Integration Concept)")
+# Weather Trends
+st.markdown("### 🌦️ Weather Trends")
 if not datasets["weather"].empty:
     date_col = detect_col(datasets["weather"], "date")
     temp_col = detect_col(datasets["weather"], "temp", "temperature")

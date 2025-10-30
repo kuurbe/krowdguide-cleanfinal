@@ -134,11 +134,19 @@ col1, col2, col3, col4 = st.columns(4)
 
 with col1:
     vcol = detect_col(datasets["visits"], "visits", "count")
+    venue_col = detect_col(datasets["visits"], "venue", "business", "location")
     last_visits = int(datasets["visits"][vcol].iloc[-1]) if not datasets["visits"].empty and vcol else 0
+    unique_businesses = datasets["visits"][venue_col].nunique() if venue_col and not datasets["visits"].empty else 0
     st.markdown(f"""
     <div class="metric-card">
         <div class="metric-value">{last_visits:,}</div>
         <div class="metric-label">Weekly Foot Traffic</div>
+    </div>
+    """, unsafe_allow_html=True)
+    st.markdown(f"""
+    <div class="metric-card">
+        <div class="metric-value">{unique_businesses:,}</div>
+        <div class="metric-label">Tracked Businesses</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -175,13 +183,18 @@ tab1, tab2, tab3, tab4 = st.tabs(["🚶 Mobility", "🌦️ Environment", "👮 
 with tab1:
     st.subheader("Mobility Trends in Deep Ellum")
     
-    # Foot Traffic
+    # Foot Traffic with Business Names
     if not datasets["visits"].empty:
         wk = detect_col(datasets["visits"], "week", "date")
         vcol = detect_col(datasets["visits"], "visits")
+        venue_col = detect_col(datasets["visits"], "venue", "business", "location")
+        
         if wk and vcol:
             df_plot = datasets["visits"].head(50)
-            fig = px.line(df_plot, x=wk, y=vcol, title="Foot Traffic (Last 50 Records)", markers=True)
+            if venue_col:
+                fig = px.line(df_plot, x=wk, y=vcol, color=venue_col, title="Foot Traffic by Business (Last 50 Records)", markers=True)
+            else:
+                fig = px.line(df_plot, x=wk, y=vcol, title="Foot Traffic (Last 50 Records)", markers=True)
             fig.update_layout(margin=dict(t=30), height=300)
             st.plotly_chart(fig, use_container_width=True)
     
@@ -191,8 +204,12 @@ with tab1:
         if not datasets["bike_ped"].empty:
             date_col = detect_col(datasets["bike_ped"], "date")
             count_col = detect_col(datasets["bike_ped"], "count")
+            loc_col = detect_col(datasets["bike_ped"], "location")
             if date_col and count_col:
-                fig = px.line(datasets["bike_ped"].head(30), x=date_col, y=count_col, title="Bike/Ped Activity", markers=True)
+                if loc_col:
+                    fig = px.line(datasets["bike_ped"].head(30), x=date_col, y=count_col, color=loc_col, title="Bike/Ped Activity by Location", markers=True)
+                else:
+                    fig = px.line(datasets["bike_ped"].head(30), x=date_col, y=count_col, title="Bike/Ped Activity", markers=True)
                 fig.update_layout(height=250)
                 st.plotly_chart(fig, use_container_width=True)
     
@@ -211,6 +228,9 @@ with tab2:
     if not datasets["weather"].empty:
         date_col = detect_col(datasets["weather"], "date")
         temp_col = detect_col(datasets["weather"], "temp", "temperature")
+        precip_col = detect_col(datasets["weather"], "precip", "rain")
+        hum_col = detect_col(datasets["weather"], "humidity")
+        
         if date_col and temp_col:
             df = datasets["weather"][[date_col, temp_col]].dropna().head(50)
             df[date_col] = pd.to_datetime(df[date_col])
@@ -223,27 +243,54 @@ with tab2:
                 fig = px.line(full_df, x=date_col, y=temp_col, color="type", title="Temperature: Historical + 30-Day Forecast")
                 fig.update_layout(height=350)
                 st.plotly_chart(fig, use_container_width=True)
-        st.dataframe(datasets["weather"].head(20), use_container_width=True)
+        
+        # Precipitation and Humidity Trends
+        if precip_col and hum_col:
+            df_weather = datasets["weather"].head(50)
+            df_weather[date_col] = pd.to_datetime(df_weather[date_col])
+            fig2 = px.line(df_weather, x=date_col, y=[precip_col, hum_col], title="Precipitation & Humidity Trends")
+            fig2.update_layout(height=300)
+            st.plotly_chart(fig2, use_container_width=True)
+            
+    st.dataframe(datasets["weather"].head(20), use_container_width=True)
 
 # Public Safety
 with tab3:
     st.subheader("Public Safety Overview")
     
+    # Arrests
     if not datasets["arrests"].empty:
-        cat_col = detect_col(datasets["arrests"], "offense")
+        cat_col = detect_col(datasets["arrests"], "offense", "crime", "category")
+        loc_col = detect_col(datasets["arrests"], "location", "area")
+        
         if cat_col:
             top_offenses = datasets["arrests"][cat_col].value_counts().head(8)
             fig = px.bar(x=top_offenses.values, y=top_offenses.index, orientation='h', title="Top Offense Categories")
             fig.update_layout(height=300, margin=dict(l=120))
             st.plotly_chart(fig, use_container_width=True)
+        
+        if loc_col:
+            loc_counts = datasets["arrests"][loc_col].value_counts().head(8)
+            fig2 = px.bar(x=loc_counts.values, y=loc_counts.index, orientation='h', title="Arrests by Location")
+            fig2.update_layout(height=300, margin=dict(l=120))
+            st.plotly_chart(fig2, use_container_width=True)
     
+    # 311 Requests
     if not datasets["service"].empty:
-        req_col = detect_col(datasets["service"], "request")
+        req_col = detect_col(datasets["service"], "request", "topic")
+        loc_col = detect_col(datasets["service"], "location")
+        
         if req_col:
             top_reqs = datasets["service"][req_col].value_counts().head(8)
-            fig = px.pie(values=top_reqs.values, names=top_reqs.index, title="311 Request Distribution")
-            fig.update_layout(height=300)
-            st.plotly_chart(fig, use_container_width=True)
+            fig3 = px.pie(values=top_reqs.values, names=top_reqs.index, title="311 Request Distribution")
+            fig3.update_layout(height=300)
+            st.plotly_chart(fig3, use_container_width=True)
+        
+        if loc_col:
+            loc_reqs = datasets["service"][loc_col].value_counts().head(8)
+            fig4 = px.bar(x=loc_reqs.values, y=loc_reqs.index, orientation='h', title="311 Requests by Location")
+            fig4.update_layout(height=300, margin=dict(l=120))
+            st.plotly_chart(fig4, use_container_width=True)
 
 # Raw Data
 with tab4:

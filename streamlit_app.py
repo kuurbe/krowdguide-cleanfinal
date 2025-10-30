@@ -3,37 +3,41 @@ import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 
-st.set_page_config(page_title="Krowd Guide: Venue Foot Traffic", layout="wide")
-st.title("📍 Deep Ellum Venue Foot Traffic")
+st.set_page_config(page_title="Krowd Guide: Deep Ellum Foot Traffic", layout="wide")
+st.title("📍 Deep Ellum Venue Foot Traffic Dashboard")
 
 # 📂 Load Data
 @st.cache_data
 def load_data():
-    return pd.read_csv("data/Trees_vs_DadaDallas_Sep2025.csv")
+    df = pd.read_csv("data/Trees_vs_DadaDallas_Sep2025.csv")
+    return df
 
 df = load_data()
 
 # 🧭 Sidebar Filters
 venues = sorted(df["venue_name"].unique())
+weeks = sorted(df["week_start_iso"].unique())
+
 selected_venue = st.sidebar.selectbox("Select Venue", ["All"] + venues)
-selected_week = st.sidebar.selectbox("Select Week", ["All"] + sorted(df["week_start_iso"].unique()))
+selected_week = st.sidebar.selectbox("Select Week", ["All"] + weeks)
 
 # 🔄 Apply Filters
+filtered_df = df.copy()
 if selected_venue != "All":
-    df = df[df["venue_name"] == selected_venue]
-
+    filtered_df = filtered_df[filtered_df["venue_name"] == selected_venue]
 if selected_week != "All":
-    df = df[df["week_start_iso"] == selected_week]
+    filtered_df = filtered_df[filtered_df["week_start_iso"] == selected_week]
 
 # 📈 Foot Traffic Trend
 st.subheader("📈 Weekly Foot Traffic")
-fig1, ax1 = plt.subplots()
-sns.lineplot(data=df, x="week_start_iso", y="visits", hue="venue_name", marker="o", ax=ax1)
-ax1.set_title("Foot Traffic Over Time")
-ax1.set_ylabel("Visits")
-ax1.set_xlabel("Week Start")
-st.pyplot(fig1)
+fig, ax = plt.subplots()
+sns.lineplot(data=filtered_df, x="week_start_iso", y="visits", hue="venue_name", marker="o", ax=ax)
+ax.set_title("Foot Traffic Over Time")
+ax.set_ylabel("Visits")
+ax.set_xlabel("Week Start")
+plt.xticks(rotation=45)
+st.pyplot(fig)
 
-# 📄 Raw Data
+# 📄 Raw Data Viewer
 with st.expander("📄 Show Raw Data"):
-    st.dataframe(df)
+    st.dataframe(filtered_df)

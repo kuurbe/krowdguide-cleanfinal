@@ -35,7 +35,7 @@ def load_data():
 df = load_data()
 
 if df.empty:
-    st.warning("⚠️ No data loaded. Please check that 'DeepEllumVisits.csv' exists in the 'data' folder.")
+    st.warning("⚠️ No data loaded. Please check that 'data/DeepEllumVisits.csv' exists.")
     st.stop()
 
 # 🧭 Detect possible venue column automatically
@@ -47,8 +47,61 @@ if not venue_col:
     st.write("Available columns:", df.columns.tolist())
     st.stop()
 
-# 🧭 Sidebar Filters
-venues = sorted(df[venue_col].dropna().unique().tolist())
+# 🧭 Detect week column
 weeks_col = "week_start_iso" if "week_start_iso" in df.columns else None
 
 if not weeks_col:
+    st.error("❌ Column 'week_start_iso' not found in data.")
+    st.write("Available columns:", df.columns.tolist())
+    st.stop()
+
+# 🧭 Sidebar Filters
+venues = sorted(df[venue_col].dropna().unique().tolist())
+weeks = sorted(df[weeks_col].dropna().unique().tolist())
+
+selected_venue = st.sidebar.selectbox("Select Venue", ["All"] + venues)
+selected_week = st.sidebar.selectbox("Select Week", ["All"] + weeks)
+
+# 🔄 Apply Filters
+filtered_df = df.copy()
+if selected_venue != "All":
+    filtered_df = filtered_df[filtered_df[venue_col] == selected_venue]
+if selected_week != "All":
+    filtered_df = filtered_df[filtered_df[weeks_col] == selected_week]
+
+# 📈 Foot Traffic Trend
+st.subheader("📈 Weekly Foot Traffic")
+
+if "visits" not in filtered_df.columns:
+    st.error("❌ Missing 'visits' column in data.")
+else:
+    chart_type = st.radio("Select Chart Type", ["Line Chart", "Bar Chart"], horizontal=True)
+
+    fig, ax = plt.subplots()
+    if chart_type == "Line Chart":
+        sns.lineplot(
+            data=filtered_df,
+            x=weeks_col,
+            y="visits",
+            hue=venue_col,
+            marker="o",
+            ax=ax
+        )
+    else:
+        sns.barplot(
+            data=filtered_df,
+            x=weeks_col,
+            y="visits",
+            hue=venue_col,
+            ax=ax
+        )
+
+    ax.set_title("Foot Traffic Over Time")
+    ax.set_ylabel("Visits")
+    ax.set_xlabel("Week Start")
+    plt.xticks(rotation=45)
+    st.pyplot(fig)
+
+# 📄 Raw Data Viewer
+with st.expander("📄 Show Raw Data"):
+    st.dataframe(filtered_df)

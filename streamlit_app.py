@@ -1,3 +1,4 @@
+# streamlit_app.py
 import os
 from pathlib import Path
 from datetime import datetime, timedelta
@@ -6,14 +7,13 @@ import pandas as pd
 import numpy as np
 import humanize
 import plotly.express as px
-import plotly.graph_objects as go
 from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import PolynomialFeatures
 from sklearn.pipeline import make_pipeline
 
 # ------------------ App Config ------------------
 st.set_page_config(page_title="KrowdGuide Smart City OS", layout="wide")
-st.title("🏙️ KrowdGuide — Deep Ellum Intelligence Hub")
+st.title("🚗 KrowdGuide — Deep Ellum Intelligence Hub")
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIRS = [
@@ -91,64 +91,65 @@ datasets = {
     "arrests": load_csv(find_file("arrests")) if find_file("arrests") else pd.DataFrame(),
 }
 
-# ------------------ Dashboard ------------------
-st.subheader("📊 Deep Ellum Live Intelligence")
+# ------------------ Uber/Lyft Style Dashboard ------------------
+st.subheader("📍 Deep Ellum Live Intelligence")
 
 # KPIs
 col1, col2, col3, col4 = st.columns(4)
 with col1:
     vcol = detect_col(datasets["visits"], "visits", "count")
     last_visits = int(datasets["visits"][vcol].iloc[-1]) if not datasets["visits"].empty and vcol else 0
-    st.metric("Weekly Foot Traffic", f"{last_visits:,}")
+    st.metric("Foot Traffic", f"{last_visits:,}")
 with col2:
-    st.metric("Bike/Ped Counts", f"{len(datasets['bike_ped']):,}")
+    st.metric("Bike/Ped", f"{len(datasets['bike_ped']):,}")
 with col3:
     st.metric("311 Requests", f"{len(datasets['service']):,}")
 with col4:
     st.metric("Arrests", f"{len(datasets['arrests']):,}")
 
-# Combined Mobility View
-st.markdown("### 🚶 Mobility & Activity Trends")
-
-tabs = st.tabs(["Foot Traffic", "Bike/Ped", "TxDOT", "Weather Forecast", "Public Safety", "311 Requests"])
+# Main visualization area
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["Foot Traffic", "Bike/Ped", "TxDOT", "Weather", "Public Safety", "311"])
 
 # Foot Traffic
-with tabs[0]:
+with tab1:
     if not datasets["visits"].empty:
         wk = detect_col(datasets["visits"], "week", "date")
         vcol = detect_col(datasets["visits"], "visits")
         venue = detect_col(datasets["visits"], "venue", "location")
         if wk and vcol:
-            fig = px.line(datasets["visits"], x=wk, y=vcol, color=venue, title="Deep Ellum Foot Traffic", markers=True)
+            fig = px.line(datasets["visits"].head(50), x=wk, y=vcol, color=venue, title="Foot Traffic (Last 50 Records)", markers=True)
             st.plotly_chart(fig, use_container_width=True)
+        st.dataframe(datasets["visits"].head(50), use_container_width=True)
 
 # Bike/Ped
-with tabs[1]:
+with tab2:
     if not datasets["bike_ped"].empty:
         date_col = detect_col(datasets["bike_ped"], "date")
         count_col = detect_col(datasets["bike_ped"], "count", "volume")
         loc_col = detect_col(datasets["bike_ped"], "location", "area")
         if date_col and count_col:
-            fig = px.line(datasets["bike_ped"], x=date_col, y=count_col, color=loc_col, title="Bike & Pedestrian Counts", markers=True)
+            fig = px.line(datasets["bike_ped"].head(50), x=date_col, y=count_col, color=loc_col, title="Bike/Ped (Last 50 Records)", markers=True)
             st.plotly_chart(fig, use_container_width=True)
+        st.dataframe(datasets["bike_ped"].head(50), use_container_width=True)
 
 # TxDOT
-with tabs[2]:
+with tab3:
     if not datasets["txdot"].empty:
         date_col = detect_col(datasets["txdot"], "date")
         count_col = detect_col(datasets["txdot"], "count", "incidents")
         loc_col = detect_col(datasets["txdot"], "location")
         if date_col and count_col:
-            fig = px.line(datasets["txdot"], x=date_col, y=count_col, color=loc_col, title="TxDOT Incidents", markers=True)
+            fig = px.line(datasets["txdot"].head(50), x=date_col, y=count_col, color=loc_col, title="TxDOT Incidents (Last 50 Records)", markers=True)
             st.plotly_chart(fig, use_container_width=True)
+        st.dataframe(datasets["txdot"].head(50), use_container_width=True)
 
-# Weather with Prediction
-with tabs[3]:
+# Weather
+with tab4:
     if not datasets["weather"].empty:
         date_col = detect_col(datasets["weather"], "date")
         temp_col = detect_col(datasets["weather"], "temp", "temperature")
         if date_col and temp_col:
-            df = datasets["weather"][[date_col, temp_col]].dropna()
+            df = datasets["weather"][[date_col, temp_col]].dropna().head(50)
             df[date_col] = pd.to_datetime(df[date_col])
             future_dates, preds = predict_series(df[date_col], df[temp_col])
             if future_dates is not None:
@@ -156,11 +157,12 @@ with tabs[3]:
                 actual_df = df.copy()
                 actual_df["type"] = "Actual"
                 full_df = pd.concat([actual_df, pred_df])
-                fig = px.line(full_df, x=date_col, y=temp_col, color="type", title="Temperature Forecast (Actual + Predicted)")
+                fig = px.line(full_df, x=date_col, y=temp_col, color="type", title="Weather Forecast (Last 50 + Predicted)")
                 st.plotly_chart(fig, use_container_width=True)
+        st.dataframe(datasets["weather"].head(50), use_container_width=True)
 
 # Public Safety
-with tabs[4]:
+with tab5:
     if not datasets["arrests"].empty:
         cat_col = detect_col(datasets["arrests"], "offense", "category")
         loc_col = detect_col(datasets["arrests"], "location", "area")
@@ -172,9 +174,10 @@ with tabs[4]:
             loc_counts = datasets["arrests"][loc_col].value_counts().head(10)
             fig = px.bar(x=loc_counts.values, y=loc_counts.index, orientation='h', title="Arrests by Location")
             st.plotly_chart(fig, use_container_width=True)
+        st.dataframe(datasets["arrests"].head(50), use_container_width=True)
 
 # 311 Requests
-with tabs[5]:
+with tab6:
     if not datasets["service"].empty:
         req_col = detect_col(datasets["service"], "request", "topic")
         loc_col = detect_col(datasets["service"], "location")
@@ -184,8 +187,9 @@ with tabs[5]:
             st.plotly_chart(fig, use_container_width=True)
         if loc_col:
             loc_reqs = datasets["service"][loc_col].value_counts().head(10)
-            fig = px.bar(x=loc_reqs.values, y=loc_reqs.index, orientation='h', title="311 Requests by Location")
+            fig = px.bar(x=loc_reqs.values, y=loc_reqs.index, orientation='h', title="311 by Location")
             st.plotly_chart(fig, use_container_width=True)
+        st.dataframe(datasets["service"].head(50), use_container_width=True)
 
 # Footer
 st.caption(f"📍 Deep Ellum Intelligence Hub · Data folder: `{DATA_DIR}` · Updated: {datetime.now().strftime('%Y-%m-%d %H:%M')}")

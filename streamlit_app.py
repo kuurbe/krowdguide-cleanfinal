@@ -1,10 +1,12 @@
+import os
+from pathlib import Path
 import streamlit as st
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
-from pathlib import Path
 
-# 🧭 Page setup
+# 🧩 Render / Streamlit Port Config
+port = int(os.environ.get("PORT", 8501))
 st.set_page_config(page_title="Krowd Guide: Deep Ellum Foot Traffic", layout="wide")
 st.title("📍 Deep Ellum Venue Foot Traffic Dashboard")
 
@@ -22,8 +24,7 @@ def load_data():
         elif absolute_path.exists():
             file_path = absolute_path
         else:
-            st.error(f"❌ Could not find 'DeepEllumVisits.csv' in either:\n{relative_path}\n{absolute_path}")
-            return pd.DataFrame()
+            return pd.DataFrame()  # return empty to trigger uploader
 
         df = pd.read_csv(file_path)
         return df
@@ -34,9 +35,15 @@ def load_data():
 
 df = load_data()
 
+# 🧾 Handle missing data with upload fallback
 if df.empty:
-    st.warning("⚠️ No data loaded. Please check that 'data/DeepEllumVisits.csv' exists.")
-    st.stop()
+    st.warning("⚠️ No data loaded. Please upload your DeepEllumVisits.csv file below.")
+    uploaded = st.file_uploader("Upload DeepEllumVisits.csv", type=["csv"])
+    if uploaded:
+        df = pd.read_csv(uploaded)
+        st.success("✅ File uploaded successfully!")
+    else:
+        st.stop()
 
 # 🧭 Detect possible venue column automatically
 possible_venue_cols = [col for col in df.columns if "venue" in col.lower()]
@@ -69,39 +76,46 @@ if selected_venue != "All":
 if selected_week != "All":
     filtered_df = filtered_df[filtered_df[weeks_col] == selected_week]
 
-# 📈 Foot Traffic Trend
+# 📊 Chart Type Toggle
 st.subheader("📈 Weekly Foot Traffic")
 
 if "visits" not in filtered_df.columns:
     st.error("❌ Missing 'visits' column in data.")
 else:
-    chart_type = st.radio("Select Chart Type", ["Line Chart", "Bar Chart"], horizontal=True)
+    col1, col2 = st.columns([3, 1])
+    with col2:
+        chart_type = st.radio("Chart Type", ["Line", "Bar"], horizontal=False)
 
-    fig, ax = plt.subplots()
-    if chart_type == "Line Chart":
-        sns.lineplot(
-            data=filtered_df,
-            x=weeks_col,
-            y="visits",
-            hue=venue_col,
-            marker="o",
-            ax=ax
-        )
-    else:
-        sns.barplot(
-            data=filtered_df,
-            x=weeks_col,
-            y="visits",
-            hue=venue_col,
-            ax=ax
-        )
+    with col1:
+        fig, ax = plt.subplots()
+        if chart_type == "Line":
+            sns.lineplot(
+                data=filtered_df,
+                x=weeks_col,
+                y="visits",
+                hue=venue_col,
+                marker="o",
+                ax=ax
+            )
+        else:
+            sns.barplot(
+                data=filtered_df,
+                x=weeks_col,
+                y="visits",
+                hue=venue_col,
+                ax=ax
+            )
 
-    ax.set_title("Foot Traffic Over Time")
-    ax.set_ylabel("Visits")
-    ax.set_xlabel("Week Start")
-    plt.xticks(rotation=45)
-    st.pyplot(fig)
+        ax.set_title("Foot Traffic Over Time")
+        ax.set_ylabel("Visits")
+        ax.set_xlabel("Week Start")
+        plt.xticks(rotation=45)
+        st.pyplot(fig)
 
 # 📄 Raw Data Viewer
 with st.expander("📄 Show Raw Data"):
     st.dataframe(filtered_df)
+
+# 💾 Optional: Download filtered data
+csv = filtered_df.to_csv(index=False).encode("utf-8")
+st.download_button("⬇️ Download Filtered Data as CSV", data=csv, file_name="Filtered_DeepEllumVisits.csv", mime="text/csv")

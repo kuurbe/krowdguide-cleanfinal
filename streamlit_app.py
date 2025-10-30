@@ -1,3 +1,5 @@
+import streamlit.web.bootstrap  # ensures Streamlit frontend loads properly
+import shutil
 import os
 from pathlib import Path
 import streamlit as st
@@ -5,8 +7,16 @@ import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 
-# 🧩 Render / Streamlit Port Config
+# 🧹 Clear Streamlit cache on startup (fixes Render stale JS/CSS issues)
+try:
+    shutil.rmtree(os.path.expanduser("~/.streamlit/cache"))
+except Exception:
+    pass
+
+# 🧩 Port config for Render
 port = int(os.environ.get("PORT", 8501))
+
+# 🏷️ Page setup
 st.set_page_config(page_title="Krowd Guide: Deep Ellum Foot Traffic", layout="wide")
 st.title("📍 Deep Ellum Venue Foot Traffic Dashboard")
 
@@ -18,20 +28,19 @@ def load_data():
         relative_path = base_dir / "data" / "DeepEllumVisits.csv"
         absolute_path = Path(r"C:\Users\juhco\OneDrive\Documents\krowdguide-cleanfinal\data\DeepEllumVisits.csv")
 
-        # ✅ Try relative path first, then absolute fallback
         if relative_path.exists():
             file_path = relative_path
         elif absolute_path.exists():
             file_path = absolute_path
         else:
-            return pd.DataFrame()  # return empty to trigger uploader
+            return pd.DataFrame()  # trigger uploader
 
         df = pd.read_csv(file_path)
         return df
 
     except Exception as e:
         st.error(f"❌ Error loading data: {e}")
-        return pd.DataFrame()  # fallback
+        return pd.DataFrame()
 
 df = load_data()
 
@@ -45,10 +54,9 @@ if df.empty:
     else:
         st.stop()
 
-# 🧭 Detect possible venue column automatically
+# 🧭 Detect possible venue column
 possible_venue_cols = [col for col in df.columns if "venue" in col.lower()]
 venue_col = possible_venue_cols[0] if possible_venue_cols else None
-
 if not venue_col:
     st.error("❌ Could not find a column related to venue in your data.")
     st.write("Available columns:", df.columns.tolist())
@@ -56,7 +64,6 @@ if not venue_col:
 
 # 🧭 Detect week column
 weeks_col = "week_start_iso" if "week_start_iso" in df.columns else None
-
 if not weeks_col:
     st.error("❌ Column 'week_start_iso' not found in data.")
     st.write("Available columns:", df.columns.tolist())
@@ -76,7 +83,7 @@ if selected_venue != "All":
 if selected_week != "All":
     filtered_df = filtered_df[filtered_df[weeks_col] == selected_week]
 
-# 📊 Chart Type Toggle
+# 📊 Chart Section
 st.subheader("📈 Weekly Foot Traffic")
 
 if "visits" not in filtered_df.columns:
@@ -116,6 +123,6 @@ else:
 with st.expander("📄 Show Raw Data"):
     st.dataframe(filtered_df)
 
-# 💾 Optional: Download filtered data
+# 💾 Download Filtered Data
 csv = filtered_df.to_csv(index=False).encode("utf-8")
 st.download_button("⬇️ Download Filtered Data as CSV", data=csv, file_name="Filtered_DeepEllumVisits.csv", mime="text/csv")

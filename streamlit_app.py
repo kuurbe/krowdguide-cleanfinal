@@ -15,7 +15,7 @@ from sklearn.pipeline import make_pipeline
 st.set_page_config(
     page_title="KrowdGuide — Deep Ellum Intelligence",
     layout="wide",
-    initial_sidebar_state="collapsed"
+    initial_sidebar_state="expanded"
 )
 
 # Custom CSS for investor-grade polish
@@ -155,15 +155,31 @@ datasets = {
     "arrests": load_csv(find_file("arrests") or find_file("crime") or find_file("police")) if find_file("arrests") or find_file("crime") or find_file("police") else pd.DataFrame(),
 }
 
+# ------------------ Sidebar Filters ------------------
+st.sidebar.header("Filters")
+date_range = st.sidebar.date_input("Select Date Range", value=[datetime.now() - timedelta(days=365), datetime.now()])
+
+# Process datasets based on filters
+filtered_datasets = {}
+for key, df in datasets.items():
+    if not df.empty:
+        date_col = detect_col(df, "date", "datetime")
+        if date_col:
+            df[date_col] = pd.to_datetime(df[date_col])
+            start_date, end_date = date_range
+            filtered_datasets[key] = df[(df[date_col] >= start_date) & (df[date_col] <= end_date)]
+        else:
+            filtered_datasets[key] = df
+
 # ------------------ Executive Dashboard ------------------
 # KPIs in polished cards
 col1, col2, col3, col4 = st.columns(4)
 
 with col1:
-    vcol = detect_col(datasets["visits"], "visits", "count")
-    venue_col = detect_col(datasets["visits"], "venue", "business", "location")
-    last_visits = int(datasets["visits"][vcol].iloc[-1]) if not datasets["visits"].empty and vcol else 0
-    unique_businesses = datasets["visits"][venue_col].nunique() if venue_col and not datasets["visits"].empty else 0
+    vcol = detect_col(filtered_datasets["visits"], "visits", "count")
+    venue_col = detect_col(filtered_datasets["visits"], "venue", "business", "location")
+    last_visits = int(filtered_datasets["visits"][vcol].iloc[-1]) if not filtered_datasets["visits"].empty and vcol else 0
+    unique_businesses = filtered_datasets["visits"][venue_col].nunique() if venue_col and not filtered_datasets["visits"].empty else 0
     st.markdown(f"""
     <div class="metric-card">
         <div class="metric-value">{last_visits:,}</div>
@@ -180,7 +196,7 @@ with col1:
 with col2:
     st.markdown(f"""
     <div class="metric-card">
-        <div class="metric-value">{len(datasets['bike_ped']):,}</div>
+        <div class="metric-value">{len(filtered_datasets['bike_ped']):,}</div>
         <div class="metric-label">Bike/Ped Records</div>
     </div>
     """, unsafe_allow_html=True)
@@ -188,7 +204,7 @@ with col2:
 with col3:
     st.markdown(f"""
     <div class="metric-card">
-        <div class="metric-value">{len(datasets['service']):,}</div>
+        <div class="metric-value">{len(filtered_datasets['service']):,}</div>
         <div class="metric-label">311 Requests</div>
     </div>
     """, unsafe_allow_html=True)
@@ -196,19 +212,19 @@ with col3:
 with col4:
     st.markdown(f"""
     <div class="metric-card">
-        <div class="metric-value">{len(datasets['arrests']):,}</div>
+        <div class="metric-value">{len(filtered_datasets['arrests']):,}</div>
         <div class="metric-label">Public Safety Incidents</div>
     </div>
     """, unsafe_allow_html=True)
 
 # Automated Alerts
-if not datasets["arrests"].empty:
-    arrest_date_col = detect_col(datasets["arrests"], "date", "datetime")
-    arrest_loc_col = detect_col(datasets["arrests"], "location", "area", "address")
-    arrest_cat_col = detect_col(datasets["arrests"], "offense", "crime", "category")
+if not filtered_datasets["arrests"].empty:
+    arrest_date_col = detect_col(filtered_datasets["arrests"], "date", "datetime")
+    arrest_loc_col = detect_col(filtered_datasets["arrests"], "location", "area", "address")
+    arrest_cat_col = detect_col(filtered_datasets["arrests"], "offense", "crime", "category")
     
     if arrest_date_col:
-        recent_arrests = datasets["arrests"][datasets["arrests"][arrest_date_col] >= (datetime.now() - timedelta(days=7))]
+        recent_arrests = filtered_datasets["arrests"][filtered_datasets["arrests"][arrest_date_col] >= (datetime.now() - timedelta(days=7))]
         if len(recent_arrests) > 0:
             st.markdown(f"""
             <div class="alert-box">
@@ -219,123 +235,117 @@ if not datasets["arrests"].empty:
 
 st.markdown('<div class="insight-box">💡 <strong>Insight:</strong> Real-time urban analytics for Deep Ellum — enabling data-driven decisions for businesses, city planners, and investors.</div>', unsafe_allow_html=True)
 
-# Simplified Single View Dashboard
-st.subheader("📊 Deep Ellum Comprehensive Intelligence View")
+# Tabs for interactive views
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["📈 All Data", "🚗 Traffic", "🚶 Foot Traffic", "🚴 Bike/Ped", "👮 Safety", "311"])
 
-# Weather Trends
-st.markdown("### 🌦️ Weather Trends")
-if not datasets["weather"].empty:
-    date_col = detect_col(datasets["weather"], "date")
-    temp_col = detect_col(datasets["weather"], "temp", "temperature")
-    precip_col = detect_col(datasets["weather"], "precip", "rain")
-    hum_col = detect_col(datasets["weather"], "humidity")
+# All Data View
+with tab1:
+    st.subheader("All Data Combined View")
+    combined_df = pd.DataFrame()
     
-    if date_col and temp_col:
-        df = datasets["weather"][[date_col, temp_col]].dropna().head(50)
-        df[date_col] = pd.to_datetime(df[date_col])
-        future_dates, preds = predict_series(df[date_col], df[temp_col])
-        if future_dates is not None:
-            pred_df = pd.DataFrame({date_col: future_dates, temp_col: preds, "type": "Forecast"})
-            actual_df = df.copy()
-            actual_df["type"] = "Historical"
-            full_df = pd.concat([actual_df, pred_df])
-            fig = px.line(full_df, x=date_col, y=temp_col, color="type", title="Temperature: Historical + 30-Day Forecast")
-            fig.update_layout(height=350)
-            st.plotly_chart(fig, use_container_width=True)
+    for key, df in filtered_datasets.items():
+        if not df.empty:
+            date_col = detect_col(df, "date", "datetime")
+            if date_col:
+                df_subset = df[[date_col]].copy()
+                df_subset['type'] = key
+                df_subset['count'] = len(df)
+                combined_df = pd.concat([combined_df, df_subset], ignore_index=True)
+    
+    if not combined_df.empty:
+        fig = px.line(combined_df, x=date_col, y='count', color='type', title="All Data Over Time")
+        st.plotly_chart(fig, use_container_width=True)
     else:
-        st.info("Weather data not available. Integrate with AccuWeather API for live trends.")
+        st.info("No data available for the selected date range.")
 
-# Traffic and Foot Traffic
-st.markdown("### 🚗 Traffic & Foot Traffic")
-col_a, col_b = st.columns(2)
-with col_a:
-    if not datasets["txdot"].empty:
-        date_col = detect_col(datasets["txdot"], "date")
-        count_col = detect_col(datasets["txdot"], "incidents")
+# Traffic View
+with tab2:
+    st.subheader("Traffic Data")
+    if not filtered_datasets["txdot"].empty:
+        date_col = detect_col(filtered_datasets["txdot"], "date")
+        count_col = detect_col(filtered_datasets["txdot"], "incidents")
         if date_col and count_col:
-            fig = px.line(datasets["txdot"].head(50), x=date_col, y=count_col, title="Traffic Incidents (Last 50 Records)", markers=True)
-            fig.update_layout(height=300)
+            fig = px.line(filtered_datasets["txdot"], x=date_col, y=count_col, title="Traffic Incidents", markers=True)
             st.plotly_chart(fig, use_container_width=True)
+        st.dataframe(filtered_datasets["txdot"], use_container_width=True)
     else:
         st.info("No traffic data available.")
-        
-with col_b:
-    if not datasets["visits"].empty:
-        wk = detect_col(datasets["visits"], "week", "date")
-        vcol = detect_col(datasets["visits"], "visits")
-        venue_col = detect_col(datasets["visits"], "venue", "business", "location")
+
+# Foot Traffic View
+with tab3:
+    st.subheader("Foot Traffic Data")
+    if not filtered_datasets["visits"].empty:
+        wk = detect_col(filtered_datasets["visits"], "week", "date")
+        vcol = detect_col(filtered_datasets["visits"], "visits")
+        venue_col = detect_col(filtered_datasets["visits"], "venue", "business", "location")
         if wk and vcol:
-            df_plot = datasets["visits"].head(50)
             if venue_col:
-                fig = px.line(df_plot, x=wk, y=vcol, color=venue_col, title="Foot Traffic by Business (Last 50 Records)", markers=True)
+                fig = px.line(filtered_datasets["visits"], x=wk, y=vcol, color=venue_col, title="Foot Traffic by Business", markers=True)
             else:
-                fig = px.line(df_plot, x=wk, y=vcol, title="Foot Traffic (Last 50 Records)", markers=True)
-            fig.update_layout(height=300)
+                fig = px.line(filtered_datasets["visits"], x=wk, y=vcol, title="Foot Traffic", markers=True)
             st.plotly_chart(fig, use_container_width=True)
+        st.dataframe(filtered_datasets["visits"], use_container_width=True)
     else:
         st.info("No foot traffic data available.")
 
-# Safety (Arrests & Crimes)
-st.markdown("### 👮 Safety: Arrests & Crimes")
-col_c, col_d = st.columns(2)
-with col_c:
-    if not datasets["arrests"].empty:
-        cat_col = detect_col(datasets["arrests"], "offense", "crime", "category")
-        if cat_col:
-            top_offenses = datasets["arrests"][cat_col].value_counts().head(8)
-            fig = px.bar(x=top_offenses.values, y=top_offenses.index, orientation='h', title="Top Offense Categories")
-            fig.update_layout(height=300, margin=dict(l=120))
-            st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.info("No arrest data available.")
-
-with col_d:
-    if not datasets["arrests"].empty:
-        loc_col = detect_col(datasets["arrests"], "location", "area", "address")
-        if loc_col:
-            loc_counts = datasets["arrests"][loc_col].value_counts().head(8)
-            fig2 = px.bar(x=loc_counts.values, y=loc_counts.index, orientation='h', title="Arrests by Location")
-            fig2.update_layout(height=300, margin=dict(l=120))
-            st.plotly_chart(fig2, use_container_width=True)
-    else:
-        st.info("No arrest location data available.")
-
-# Bike/Ped & 311 Requests
-st.markdown("### 🚴 Bike/Ped & 311 Requests")
-col_e, col_f = st.columns(2)
-with col_e:
-    if not datasets["bike_ped"].empty:
-        date_col = detect_col(datasets["bike_ped"], "date")
-        count_col = detect_col(datasets["bike_ped"], "count")
-        loc_col = detect_col(datasets["bike_ped"], "location")
+# Bike/Ped View
+with tab4:
+    st.subheader("Bike/Ped Data")
+    if not filtered_datasets["bike_ped"].empty:
+        date_col = detect_col(filtered_datasets["bike_ped"], "date")
+        count_col = detect_col(filtered_datasets["bike_ped"], "count")
+        loc_col = detect_col(filtered_datasets["bike_ped"], "location")
         if date_col and count_col:
             if loc_col:
-                fig = px.line(datasets["bike_ped"].head(50), x=date_col, y=count_col, color=loc_col, title="Bike/Ped Activity by Location", markers=True)
+                fig = px.line(filtered_datasets["bike_ped"], x=date_col, y=count_col, color=loc_col, title="Bike/Ped Activity by Location", markers=True)
             else:
-                fig = px.line(datasets["bike_ped"].head(50), x=date_col, y=count_col, title="Bike/Ped Activity", markers=True)
-            fig.update_layout(height=300)
+                fig = px.line(filtered_datasets["bike_ped"], x=date_col, y=count_col, title="Bike/Ped Activity", markers=True)
             st.plotly_chart(fig, use_container_width=True)
+        st.dataframe(filtered_datasets["bike_ped"], use_container_width=True)
     else:
         st.info("No bike/ped data available.")
 
-with col_f:
-    if not datasets["service"].empty:
-        req_col = detect_col(datasets["service"], "request", "topic")
-        loc_col = detect_col(datasets["service"], "location")
+# Safety View
+with tab5:
+    st.subheader("Safety Data (Arrests & Crimes)")
+    if not filtered_datasets["arrests"].empty:
+        cat_col = detect_col(filtered_datasets["arrests"], "offense", "crime", "category")
+        loc_col = detect_col(filtered_datasets["arrests"], "location", "area", "address")
+        
+        if cat_col:
+            top_offenses = filtered_datasets["arrests"][cat_col].value_counts().head(10)
+            fig = px.bar(x=top_offenses.values, y=top_offenses.index, orientation='h', title="Top Offense Categories")
+            st.plotly_chart(fig, use_container_width=True)
+        
+        if loc_col:
+            loc_counts = filtered_datasets["arrests"][loc_col].value_counts().head(10)
+            fig2 = px.bar(x=loc_counts.values, y=loc_counts.index, orientation='h', title="Arrests by Location")
+            st.plotly_chart(fig2, use_container_width=True)
+        
+        st.dataframe(filtered_datasets["arrests"], use_container_width=True)
+    else:
+        st.info("No arrest data available.")
+
+# 311 View
+with tab6:
+    st.subheader("311 Requests Data")
+    if not filtered_datasets["service"].empty:
+        req_col = detect_col(filtered_datasets["service"], "request", "topic")
+        loc_col = detect_col(filtered_datasets["service"], "location")
+        
         if req_col:
-            top_reqs = datasets["service"][req_col].value_counts().head(8)
+            top_reqs = filtered_datasets["service"][req_col].value_counts().head(10)
             fig3 = px.pie(values=top_reqs.values, names=top_reqs.index, title="311 Request Distribution")
-            fig3.update_layout(height=300)
             st.plotly_chart(fig3, use_container_width=True)
+        
+        if loc_col:
+            loc_reqs = filtered_datasets["service"][loc_col].value_counts().head(10)
+            fig4 = px.bar(x=loc_reqs.values, y=loc_reqs.index, orientation='h', title="311 Requests by Location")
+            st.plotly_chart(fig4, use_container_width=True)
+        
+        st.dataframe(filtered_datasets["service"], use_container_width=True)
     else:
         st.info("No 311 request data available.")
-
-# Raw Data Explorer
-st.subheader("🔍 Raw Data Explorer (50 Records)")
-for name, df in datasets.items():
-    if not df.empty:
-        with st.expander(f"📁 {name.replace('_', ' ').title()} ({len(df)} records)"):
-            st.dataframe(df.head(50), use_container_width=True)
 
 # Footer
 st.divider()

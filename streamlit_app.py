@@ -1,7 +1,4 @@
-# KrowdGuide Smart City OS - All-in-one Prototype
-# Run: streamlit run streamlit_app.py
-# Place your CSVs in ./data/ (supports *.csv and *.csv.gz)
-
+# streamlit_app.py
 import os
 from pathlib import Path
 from datetime import datetime
@@ -13,9 +10,15 @@ import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 import humanize
+import plotly.express as px
+import plotly.graph_objects as go
 
 # ------------------ App Config ------------------
-st.set_page_config(page_title="KrowdGuide Smart City OS", layout="wide")
+st.set_page_config(
+    page_title="KrowdGuide Smart City OS",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 st.title("🏙️ KrowdGuide — Smart City OS (Prototype)")
 
 # Render dynamic port (safe to ignore locally)
@@ -125,6 +128,16 @@ def pick_by_name(substr: str):
             return p
     return None
 
+# ------------------ Named datasets (best-effort) ------------------
+PATH_VISITS   = pick_by_name("DeepEllumVisits") or pick_by_name("WeeklyVisits")
+PATH_ARRESTS  = pick_by_name("arrests")
+PATH_SERVICE  = pick_by_name("service requests") or pick_by_name("311")
+PATH_TRAFFIC  = pick_by_name("traffic") or pick_by_name("daily_clean")
+PATH_BIKE_PED = pick_by_name("bike_pedestrian") or pick_by_name("bike") or pick_by_name("pedestrian")
+PATH_WEATHER  = pick_by_name("DeepWeather") or pick_by_name("weather")  # Updated filename
+PATH_TXDOT    = pick_by_name("TxDOT")
+PATH_TREES    = pick_by_name("Trees")
+
 # ------------------ Sidebar: Navigation & Catalog ------------------
 st.sidebar.header("Navigation")
 page = st.sidebar.radio(
@@ -137,329 +150,357 @@ catalog = pd.DataFrame([info_for(p) for p in CSV_PATHS])
 with st.sidebar.expander("Datasets (quick view)"):
     st.dataframe(catalog[["file", "size_readable", "modified"]], use_container_width=True, hide_index=True)
 
-# ------------------ Named datasets (best-effort) ------------------
-PATH_VISITS   = pick_by_name("DeepEllumVisits") or pick_by_name("WeeklyVisits")
-PATH_ARRESTS  = pick_by_name("arrests")
-PATH_SERVICE  = pick_by_name("service requests") or pick_by_name("311")
-PATH_TRAFFIC  = pick_by_name("traffic") or pick_by_name("daily_clean")
-PATH_BIKE_PED = pick_by_name("bike_pedestrian") or pick_by_name("bike") or pick_by_name("pedestrian")
-PATH_WEATHER  = pick_by_name("weather")
-PATH_TXDOT    = pick_by_name("TxDOT")
-PATH_TREES    = pick_by_name("Trees")
-
 # ------------------ DASHBOARD ------------------
 if page == "Dashboard":
     st.subheader("📊 City Intelligence Overview")
-
-    df_visits  = load_csv(PATH_VISITS) if PATH_VISITS else pd.DataFrame()
-    df_arrests = load_csv(PATH_ARRESTS) if PATH_ARRESTS else pd.DataFrame()
-    df_service = load_csv(PATH_SERVICE) if PATH_SERVICE else pd.DataFrame()
-    df_traffic = load_csv(PATH_TRAFFIC) if PATH_TRAFFIC else pd.DataFrame()
-    df_weather = load_csv(PATH_WEATHER) if PATH_WEATHER else pd.DataFrame()
-
+    
+    # Load all data at once
+    data_sources = {
+        'visits': (PATH_VISITS, "Weekly Visits"),
+        'arrests': (PATH_ARRESTS, "Arrests"),
+        'service': (PATH_SERVICE, "Service Requests"),
+        'traffic': (PATH_TRAFFIC, "Traffic Records"),
+        'weather': (PATH_WEATHER, "Weather Data")
+    }
+    
+    loaded_data = {}
+    for key, (path, name) in data_sources.items():
+        if path:
+            loaded_data[key] = load_csv(path)
+        else:
+            loaded_data[key] = pd.DataFrame()
+    
     # KPIs
     k1, k2, k3, k4 = st.columns(4)
     with k1:
-        vcol = detect_col(df_visits, "visits", "count")
-        last_visits = int(df_visits[vcol].iloc[-1]) if (not df_visits.empty and vcol) else 0
+        vcol = detect_col(loaded_data['visits'], "visits", "count")
+        last_visits = int(loaded_data['visits'][vcol].iloc[-1]) if (not loaded_data['visits'].empty and vcol) else 0
         st.metric("Weekly Visits (last row)", f"{last_visits:,}")
     with k2:
-        st.metric("Arrests (rows)", f"{len(df_arrests):,}")
+        st.metric("Arrests (rows)", f"{len(loaded_data['arrests']):,}")
     with k3:
-        st.metric("Service Requests (rows)", f"{len(df_service):,}")
+        st.metric("Service Requests (rows)", f"{len(loaded_data['service']):,}")
     with k4:
-        st.metric("Traffic Records (rows)", f"{len(df_traffic):,}")
+        st.metric("Traffic Records (rows)", f"{len(loaded_data['traffic']):,}")
 
+    # Combined visualization section
+    st.markdown("#### Traffic & Weather Correlation")
+    if not loaded_data['traffic'].empty and not loaded_data['weather'].empty:
+        date_col_traffic = detect_col(loaded_data['traffic'], "date", "day", "datetime", prefer_startswith=True)
+        vol_col = detect_col(loaded_data['traffic'], "volume", "count", "avg")
+        date_col_weather = detect_col(loaded_data['weather'], "date", "day", "datetime", prefer_startswith=True)
+        temp_col = detect_col(loaded_data['weather'], "temperature", "temp", "temp_f", "temp_c")
+        
+        if date_col_traffic and vol_col and date_col_weather and temp_col:
+            # Merge data on date
+            traffic_df = loaded_data['traffic'][[date_col_traffic, vol_col]].rename(columns={date_col_traffic: "date", vol_col: "traffic_volume"})
+            weather_df = loaded_data['weather'][[date_col_weather, temp_col]].rename(columns={date_col_weather: "date", temp_col: "temperature"})
+            merged_df = pd.merge(traffic_df, weather_df, on="date", how="inner")
+            
+            if not merged_df.empty:
+                fig = px.scatter(merged_df, x="traffic_volume", y="temperature", 
+                                title="Traffic Volume vs Temperature",
+                                trendline="ols")
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.warning("No overlapping dates found between traffic and weather data")
+        else:
+            st.info("Required columns not found for traffic/weather correlation")
+    
     # Foot Traffic Trend
-    if not df_visits.empty:
-        wk = detect_col(df_visits, "week_start_iso", "week")
-        vcol = detect_col(df_visits, "visits")
-        venue = detect_col(df_visits, "venue")
+    if not loaded_data['visits'].empty:
+        st.markdown("#### Foot Traffic Trend")
+        wk = detect_col(loaded_data['visits'], "week_start_iso", "week")
+        vcol = detect_col(loaded_data['visits'], "visits")
+        venue = detect_col(loaded_data['visits'], "venue")
         if wk and vcol:
-            st.markdown("#### Foot Traffic Trend")
-            fig, ax = figure()
-            sns.lineplot(data=df_visits, x=wk, y=vcol, hue=venue, marker="o", ax=ax)
-            ax.set_xlabel("Week"); ax.set_ylabel("Visits"); ax.set_title("Foot Traffic Over Time")
-            plt.xticks(rotation=45)
-            st.pyplot(fig)
+            fig = px.line(loaded_data['visits'], x=wk, y=vcol, color=venue,
+                         title="Foot Traffic Over Time",
+                         markers=True)
+            fig.update_layout(xaxis_title="Week", yaxis_title="Visits")
+            st.plotly_chart(fig, use_container_width=True)
 
     # Top Service/Request Categories
-    if not df_service.empty:
+    if not loaded_data['service'].empty:
         st.markdown("#### Top Service/Request Categories")
-        req = detect_col(df_service, "request", "service", "topic")
+        req = detect_col(loaded_data['service'], "request", "service", "topic")
         if req:
-            vc = df_service[req].astype("string").str.strip().fillna("⟂ NA").value_counts().head(10).reset_index()
+            vc = loaded_data['service'][req].astype("string").str.strip().fillna("⟂ NA").value_counts().head(10).reset_index()
             vc.columns = [req, "count"]
-            fig, ax = figure()
-            sns.barplot(data=vc, x="count", y=req, ax=ax)
-            ax.set_title("Top Requests")
-            st.pyplot(fig)
+            fig = px.bar(vc, x="count", y=req, orientation='h',
+                        title="Top Service Requests",
+                        labels={req: "Request Type", "count": "Count"})
+            fig.update_layout(yaxis={'categoryorder':'total ascending'})
+            st.plotly_chart(fig, use_container_width=True)
 
     # Weather Snapshot (optional)
-    if not df_weather.empty:
+    if not loaded_data['weather'].empty:
         st.markdown("#### Weather Snapshot")
-        tcol = detect_col(df_weather, "temperature", "temp", "temp_f", "temp_c")
-        pcol = detect_col(df_weather, "precip", "rain", "precipitation")
-        hcol = detect_col(df_weather, "humidity")
-        dcol = detect_col(df_weather, "datetime", "timestamp", "date", "time", prefer_startswith=True)
+        tcol = detect_col(loaded_data['weather'], "temperature", "temp", "temp_f", "temp_c")
+        pcol = detect_col(loaded_data['weather'], "precip", "rain", "precipitation")
+        hcol = detect_col(loaded_data['weather'], "humidity")
         cols = st.columns(3)
         with cols[0]:
-            if tcol: st.metric("Last Temperature", f"{df_weather[tcol].dropna().iloc[-1]:.1f}")
+            if tcol: st.metric("Last Temperature", f"{loaded_data['weather'][tcol].dropna().iloc[-1]:.1f}°F")
         with cols[1]:
-            if pcol: st.metric("Last Precip", f"{df_weather[pcol].dropna().iloc[-1]:.2f}")
+            if pcol: st.metric("Last Precip", f"{loaded_data['weather'][pcol].dropna().iloc[-1]:.2f}in")
         with cols[2]:
-            if hcol: st.metric("Last Humidity", f"{df_weather[hcol].dropna().iloc[-1]:.0f}%")
+            if hcol: st.metric("Last Humidity", f"{loaded_data['weather'][hcol].dropna().iloc[-1]:.0f}%")
 
 # ------------------ MOBILITY ------------------
 elif page == "Mobility":
     st.subheader("🚶 Mobility: Traffic, Bike/Ped, Footfall")
-    tabs = st.tabs(["Foot Traffic", "Traffic", "Bike/Ped"])
-
-    # Foot Traffic
-    with tabs[0]:
-        if PATH_VISITS:
-            df = load_csv(PATH_VISITS)
-            st.caption(f"Dataset: {PATH_VISITS.name}")
-            wk = detect_col(df, "week_start_iso", "week")
-            vcol = detect_col(df, "visits")
-            venue = detect_col(df, "venue")
-            if wk and vcol:
-                weeks = sorted(df[wk].dropna().unique().tolist())
-                selected_week = st.selectbox("Filter by week", ["All"] + weeks)
-                if venue:
-                    venues = sorted(df[venue].dropna().unique().tolist())
-                    selected_venue = st.selectbox("Filter by venue", ["All"] + venues)
-                else:
-                    selected_venue = "All"
-                fdf = df.copy()
-                if selected_week != "All":
-                    fdf = fdf[fdf[wk] == selected_week]
-                if venue and selected_venue != "All":
-                    fdf = fdf[fdf[venue] == selected_venue]
-                chart = st.radio("Chart", ["Line", "Bar"], horizontal=True, key="mob_visits_chart")
-                fig, ax = figure()
-                if chart == "Line":
-                    sns.lineplot(data=fdf, x=wk, y=vcol, hue=venue, marker="o", ax=ax)
-                else:
-                    sns.barplot(data=fdf, x=wk, y=vcol, hue=venue, ax=ax)
-                ax.set_title("Foot Traffic"); plt.xticks(rotation=45)
-                st.pyplot(fig)
-                preview_and_download(df, PATH_VISITS.name, key_suffix="visits")
-            else:
-                st.info("Could not detect `week`/`visits` columns.")
+    
+    # Load all mobility data
+    mobility_data = {}
+    for key, path in [('visits', PATH_VISITS), ('traffic', PATH_TRAFFIC), ('bike_ped', PATH_BIKE_PED)]:
+        if path:
+            mobility_data[key] = load_csv(path)
         else:
-            st.warning("No visits dataset found.")
-
-    # Traffic
-    with tabs[1]:
-        if PATH_TRAFFIC:
-            df = load_csv(PATH_TRAFFIC)
-            st.caption(f"Dataset: {PATH_TRAFFIC.name}")
-            date_col = detect_col(df, "date", "day", prefer_startswith=True)
-            vol_col  = detect_col(df, "volume", "count", "avg")
-            if date_col and vol_col:
-                chart = st.radio("Chart", ["Line", "Bar"], horizontal=True, key="traffic_chart")
-                fig, ax = figure()
-                if chart == "Line":
-                    sns.lineplot(data=df, x=date_col, y=vol_col, marker="o", ax=ax)
-                else:
-                    sns.barplot(data=df, x=date_col, y=vol_col, ax=ax)
-                ax.set_title("Traffic Volume"); plt.xticks(rotation=45)
-                st.pyplot(fig)
-            preview_and_download(df, PATH_TRAFFIC.name, key_suffix="traffic")
-        else:
-            st.warning("No traffic dataset found.")
-
-    # Bike/Ped
-    with tabs[2]:
-        if PATH_BIKE_PED:
-            df = load_csv(PATH_BIKE_PED)
-            st.caption(f"Dataset: {PATH_BIKE_PED.name}")
-            x = detect_col(df, "date", "day", prefer_startswith=True)
-            y = detect_col(df, "count", "avg", "volume")
-            if x and y:
-                fig, ax = figure()
-                sns.lineplot(data=df, x=x, y=y, marker="o", ax=ax)
-                ax.set_title("Bike/Ped Counts"); plt.xticks(rotation=45)
-                st.pyplot(fig)
-            preview_and_download(df, PATH_BIKE_PED.name, key_suffix="bikeped")
-        else:
-            st.warning("No bike/ped dataset found.")
+            mobility_data[key] = pd.DataFrame()
+    
+    # Summary metrics
+    st.markdown("#### Mobility Metrics")
+    m1, m2, m3 = st.columns(3)
+    with m1:
+        st.metric("Foot Traffic Records", f"{len(mobility_data['visits']):,}")
+    with m2:
+        st.metric("Traffic Records", f"{len(mobility_data['traffic']):,}")
+    with m3:
+        st.metric("Bike/Ped Records", f"{len(mobility_data['bike_ped']):,}")
+    
+    # Combined mobility chart
+    st.markdown("#### Combined Mobility Trends")
+    if not mobility_data['visits'].empty:
+        wk = detect_col(mobility_data['visits'], "week_start_iso", "week")
+        vcol = detect_col(mobility_data['visits'], "visits")
+        venue = detect_col(mobility_data['visits'], "venue")
+        if wk and vcol:
+            fig = px.line(mobility_data['visits'], x=wk, y=vcol, color=venue,
+                         title="Foot Traffic Over Time",
+                         markers=True)
+            fig.update_layout(xaxis_title="Week", yaxis_title="Visits")
+            st.plotly_chart(fig, use_container_width=True)
+    
+    if not mobility_data['traffic'].empty:
+        date_col = detect_col(mobility_data['traffic'], "date", "day", prefer_startswith=True)
+        vol_col = detect_col(mobility_data['traffic'], "volume", "count", "avg")
+        if date_col and vol_col:
+            fig = px.line(mobility_data['traffic'], x=date_col, y=vol_col,
+                         title="Traffic Volume Over Time",
+                         markers=True)
+            fig.update_layout(xaxis_title="Date", yaxis_title="Volume")
+            st.plotly_chart(fig, use_container_width=True)
+    
+    if not mobility_data['bike_ped'].empty:
+        x = detect_col(mobility_data['bike_ped'], "date", "day", prefer_startswith=True)
+        y = detect_col(mobility_data['bike_ped'], "count", "avg", "volume")
+        if x and y:
+            fig = px.line(mobility_data['bike_ped'], x=x, y=y,
+                         title="Bike/Ped Counts Over Time",
+                         markers=True)
+            fig.update_layout(xaxis_title="Date", yaxis_title="Count")
+            st.plotly_chart(fig, use_container_width=True)
 
 # ------------------ PUBLIC SAFETY ------------------
 elif page == "Public Safety":
     st.subheader("👮 Public Safety: Arrests & Requests")
-    tabs = st.tabs(["Arrests", "Service Requests"])
-
-    with tabs[0]:
-        if PATH_ARRESTS:
-            df = load_csv(PATH_ARRESTS)
-            st.caption(f"Dataset: {PATH_ARRESTS.name}")
-            cat = detect_col(df, "offense", "charge", "category")
-            date_col = detect_col(df, "date", "arrest", "datetime", prefer_startswith=True)
-            if cat:
-                st.markdown("**Top Offenses**")
-                vc = df[cat].astype("string").str.strip().fillna("⟂ NA").value_counts().head(15).reset_index()
-                vc.columns = [cat, "count"]
-                fig, ax = figure()
-                sns.barplot(data=vc, x="count", y=cat, ax=ax)
-                ax.set_title("Top Offenses"); st.pyplot(fig)
-            if date_col:
-                st.markdown("**Arrests Over Time**")
-                ts = df.groupby(date_col).size().reset_index(name="count")
-                fig, ax = figure()
-                sns.lineplot(data=ts, x=date_col, y="count", marker="o", ax=ax)
-                plt.xticks(rotation=45); ax.set_title("Arrests Over Time")
-                st.pyplot(fig)
-            preview_and_download(df, PATH_ARRESTS.name, key_suffix="arrests")
+    
+    # Load all safety data
+    safety_data = {}
+    for key, path in [('arrests', PATH_ARRESTS), ('service', PATH_SERVICE)]:
+        if path:
+            safety_data[key] = load_csv(path)
         else:
-            st.warning("No arrests dataset found.")
-
-    with tabs[1]:
-        if PATH_SERVICE:
-            df = load_csv(PATH_SERVICE)
-            st.caption(f"Dataset: {PATH_SERVICE.name}")
-            req = detect_col(df, "request", "service", "topic")
-            date_col = detect_col(df, "date", "week", "datetime", prefer_startswith=True)
-            if req:
-                st.markdown("**Top Request/Service Categories**")
-                vc = df[req].astype("string").str.strip().fillna("⟂ NA").value_counts().head(15).reset_index()
-                vc.columns = [req, "count"]
-                fig, ax = figure()
-                sns.barplot(data=vc, x="count", y=req, ax=ax)
-                ax.set_title("Requests Top Categories"); st.pyplot(fig)
-            if date_col and req:
-                st.markdown("**Requests Trend**")
-                trend = (df.assign(__cat=df[req].astype("string").str.strip().fillna("⟂ NA"))
-                           .groupby([date_col, "__cat"]).size().reset_index(name="count"))
-                fig, ax = figure()
-                sns.lineplot(data=trend, x=date_col, y="count", hue="__cat", marker="o", ax=ax)
-                plt.xticks(rotation=45); ax.set_title("Requests Over Time")
-                st.pyplot(fig)
-            preview_and_download(df, PATH_SERVICE.name, key_suffix="service")
-        else:
-            st.warning("No service-requests dataset found.")
+            safety_data[key] = pd.DataFrame()
+    
+    # Summary metrics
+    st.markdown("#### Public Safety Metrics")
+    s1, s2 = st.columns(2)
+    with s1:
+        st.metric("Arrest Records", f"{len(safety_data['arrests']):,}")
+    with s2:
+        st.metric("Service Requests", f"{len(safety_data['service']):,}")
+    
+    # Combined safety chart
+    st.markdown("#### Public Safety Trends")
+    if not safety_data['arrests'].empty:
+        cat = detect_col(safety_data['arrests'], "offense", "charge", "category")
+        date_col = detect_col(safety_data['arrests'], "date", "arrest", "datetime", prefer_startswith=True)
+        if cat:
+            st.markdown("**Top Offenses**")
+            vc = safety_data['arrests'][cat].astype("string").str.strip().fillna("⟂ NA").value_counts().head(15).reset_index()
+            vc.columns = [cat, "count"]
+            fig = px.bar(vc, x="count", y=cat, orientation='h',
+                        title="Top Offenses",
+                        labels={cat: "Offense Type", "count": "Count"})
+            fig.update_layout(yaxis={'categoryorder':'total ascending'})
+            st.plotly_chart(fig, use_container_width=True)
+        if date_col:
+            st.markdown("**Arrests Over Time**")
+            ts = safety_data['arrests'].groupby(date_col).size().reset_index(name="count")
+            fig = px.line(ts, x=date_col, y="count",
+                         title="Arrests Over Time",
+                         markers=True)
+            fig.update_layout(xaxis_title="Date", yaxis_title="Count")
+            st.plotly_chart(fig, use_container_width=True)
+    
+    if not safety_data['service'].empty:
+        req = detect_col(safety_data['service'], "request", "service", "topic")
+        date_col = detect_col(safety_data['service'], "date", "week", "datetime", prefer_startswith=True)
+        if req:
+            st.markdown("**Top Request/Service Categories**")
+            vc = safety_data['service'][req].astype("string").str.strip().fillna("⟂ NA").value_counts().head(15).reset_index()
+            vc.columns = [req, "count"]
+            fig = px.bar(vc, x="count", y=req, orientation='h',
+                        title="Top Service Requests",
+                        labels={req: "Request Type", "count": "Count"})
+            fig.update_layout(yaxis={'categoryorder':'total ascending'})
+            st.plotly_chart(fig, use_container_width=True)
+        if date_col and req:
+            st.markdown("**Requests Trend**")
+            trend = (safety_data['service']
+                    .assign(__cat=safety_data['service'][req].astype("string").str.strip().fillna("⟂ NA"))
+                    .groupby([date_col, "__cat"]).size().reset_index(name="count"))
+            fig = px.line(trend, x=date_col, y="count", color="__cat",
+                         title="Service Requests Over Time",
+                         markers=True)
+            fig.update_layout(xaxis_title="Date", yaxis_title="Count")
+            st.plotly_chart(fig, use_container_width=True)
 
 # ------------------ INFRASTRUCTURE ------------------
 elif page == "Infrastructure":
     st.subheader("🛠️ Infrastructure: 311 & TxDOT")
-    tabs = st.tabs(["311 Calls", "TxDOT / Roadwork"])
-
-    with tabs[0]:
-        p = PATH_SERVICE or pick_by_name("311")
-        if p:
-            df = load_csv(p)
-            st.caption(f"Dataset: {p.name}")
-            topic = detect_col(df, "request", "service", "topic")
-            status = detect_col(df, "status", "state")
-            if topic:
-                st.markdown("**311 Topics**")
-                vc = df[topic].astype("string").fillna("⟂ NA").value_counts().head(15).reset_index()
-                vc.columns = [topic, "count"]
-                fig, ax = figure()
-                sns.barplot(data=vc, x="count", y=topic, ax=ax)
-                ax.set_title("Top 311 Topics"); st.pyplot(fig)
-            if status:
-                st.markdown("**Status Distribution**")
-                vc = df[status].astype("string").fillna("⟂ NA").value_counts().reset_index()
-                vc.columns = [status, "count"]
-                fig, ax = figure()
-                sns.barplot(data=vc, x="count", y=status, ax=ax)
-                ax.set_title("311 Status"); st.pyplot(fig)
-            preview_and_download(df, p.name, key_suffix="infra311")
+    
+    # Load all infrastructure data
+    infra_data = {}
+    for key, path in [('service', PATH_SERVICE), ('txdot', PATH_TXDOT)]:
+        if path:
+            infra_data[key] = load_csv(path)
         else:
-            st.warning("No 311 dataset found.")
-
-    with tabs[1]:
-        if PATH_TXDOT:
-            df = load_csv(PATH_TXDOT)
-            st.caption(f"Dataset: {PATH_TXDOT.name}")
-            date_col = detect_col(df, "date", "week", "datetime", prefer_startswith=True)
-            metric = detect_col(df, "count", "closures", "incidents", "events")
-            if date_col and metric:
-                fig, ax = figure()
-                sns.lineplot(data=df, x=date_col, y=metric, marker="o", ax=ax)
-                plt.xticks(rotation=45); ax.set_title("TxDOT / Roadwork")
-                st.pyplot(fig)
-            preview_and_download(df, PATH_TXDOT.name, key_suffix="txdot")
-        else:
-            st.warning("No TxDOT dataset found.")
+            infra_data[key] = pd.DataFrame()
+    
+    # Summary metrics
+    st.markdown("#### Infrastructure Metrics")
+    i1, i2 = st.columns(2)
+    with i1:
+        st.metric("311 Service Requests", f"{len(infra_data['service']):,}")
+    with i2:
+        st.metric("TxDOT Records", f"{len(infra_data['txdot']):,}")
+    
+    # Combined infrastructure chart
+    st.markdown("#### Infrastructure Trends")
+    if not infra_data['service'].empty:
+        topic = detect_col(infra_data['service'], "request", "service", "topic")
+        status = detect_col(infra_data['service'], "status", "state")
+        if topic:
+            st.markdown("**311 Topics**")
+            vc = infra_data['service'][topic].astype("string").fillna("⟂ NA").value_counts().head(15).reset_index()
+            vc.columns = [topic, "count"]
+            fig = px.bar(vc, x="count", y=topic, orientation='h',
+                        title="Top 311 Topics",
+                        labels={topic: "Topic", "count": "Count"})
+            fig.update_layout(yaxis={'categoryorder':'total ascending'})
+            st.plotly_chart(fig, use_container_width=True)
+        if status:
+            st.markdown("**Status Distribution**")
+            vc = infra_data['service'][status].astype("string").fillna("⟂ NA").value_counts().reset_index()
+            vc.columns = [status, "count"]
+            fig = px.pie(vc, values="count", names=status,
+                        title="311 Status Distribution")
+            st.plotly_chart(fig, use_container_width=True)
+    
+    if not infra_data['txdot'].empty:
+        date_col = detect_col(infra_data['txdot'], "date", "week", "datetime", prefer_startswith=True)
+        metric = detect_col(infra_data['txdot'], "count", "closures", "incidents", "events")
+        if date_col and metric:
+            fig = px.line(infra_data['txdot'], x=date_col, y=metric,
+                         title="TxDOT Incidents Over Time",
+                         markers=True)
+            fig.update_layout(xaxis_title="Date", yaxis_title="Count")
+            st.plotly_chart(fig, use_container_width=True)
 
 # ------------------ SUSTAINABILITY (incl. WEATHER) ------------------
 elif page == "Sustainability":
     st.subheader("🌳 Sustainability & Weather Insights")
-    tabs = st.tabs(["Environment / Trees", "Weather Trends"])
-
+    
+    # Load all sustainability data
+    sustainability_data = {}
+    for key, path in [('trees', PATH_TREES), ('weather', PATH_WEATHER)]:
+        if path:
+            sustainability_data[key] = load_csv(path)
+        else:
+            sustainability_data[key] = pd.DataFrame()
+    
+    # Summary metrics
+    st.markdown("#### Sustainability Metrics")
+    s1, s2 = st.columns(2)
+    with s1:
+        st.metric("Tree Records", f"{len(sustainability_data['trees']):,}")
+    with s2:
+        st.metric("Weather Records", f"{len(sustainability_data['weather']):,}")
+    
+    # Combined sustainability chart
+    st.markdown("#### Sustainability Trends")
     # Trees & Green Data
-    with tabs[0]:
-        if PATH_TREES:
-            df = load_csv(PATH_TREES)
-            st.caption(f"Dataset: {PATH_TREES.name}")
-            metric = detect_col(df, "tree", "species", "green", "park")
-            count_col = detect_col(df, "count", "number", "qty")
-            if metric:
-                vc = df[metric].astype("string").fillna("⟂ NA").value_counts().head(20).reset_index()
-                vc.columns = [metric, "count"]
-                fig, ax = figure()
-                sns.barplot(data=vc, x="count", y=metric, ax=ax)
-                ax.set_title("Top Tree/Green Categories"); st.pyplot(fig)
-            if count_col:
-                st.write("Summary")
-                st.dataframe(df[[metric, count_col]].describe(include="all") if metric else df[[count_col]].describe(), use_container_width=True)
-            preview_and_download(df, PATH_TREES.name, key_suffix="trees")
-        else:
-            st.info("No tree/green dataset found.")
-
+    if not sustainability_data['trees'].empty:
+        metric = detect_col(sustainability_data['trees'], "tree", "species", "green", "park")
+        count_col = detect_col(sustainability_data['trees'], "count", "number", "qty")
+        if metric:
+            vc = sustainability_data['trees'][metric].astype("string").fillna("⟂ NA").value_counts().head(20).reset_index()
+            vc.columns = [metric, "count"]
+            fig = px.bar(vc, x="count", y=metric, orientation='h',
+                        title="Top Tree/Green Categories",
+                        labels={metric: "Category", "count": "Count"})
+            fig.update_layout(yaxis={'categoryorder':'total ascending'})
+            st.plotly_chart(fig, use_container_width=True)
+    
     # Weather Data
-    with tabs[1]:
-        if PATH_WEATHER:
-            df = load_csv(PATH_WEATHER)
-            st.caption(f"Dataset: {PATH_WEATHER.name}")
-
-            # Flexible column detection
-            dcol = detect_col(df, "datetime", "timestamp", "date", "time", prefer_startswith=True)
-            tcol = detect_col(df, "temperature", "temp", "temp_f", "temp_c")
-            pcol = detect_col(df, "precip", "rain", "precipitation")
-            hcol = detect_col(df, "humidity", "rh")
-
-            # Try to parse datetimes if needed
-            if dcol and not np.issubdtype(df[dcol].dtype, np.datetime64):
-                with st.spinner("Parsing datetimes..."):
-                    try:
-                        df[dcol] = pd.to_datetime(df[dcol], errors="coerce")
-                    except Exception:
-                        pass
-
-            cols = st.columns(3)
-            with cols[0]:
-                if tcol and not df[tcol].dropna().empty:
-                    st.metric("Last Temperature", f"{df[tcol].dropna().iloc[-1]:.1f}")
-            with cols[1]:
-                if pcol and not df[pcol].dropna().empty:
-                    st.metric("Last Precip", f"{df[pcol].dropna().iloc[-1]:.2f}")
-            with cols[2]:
-                if hcol and not df[hcol].dropna().empty:
-                    st.metric("Last Humidity", f"{df[hcol].dropna().iloc[-1]:.0f}%")
-
-            chart = st.radio("Weather Chart", ["Temperature", "Precipitation", "Humidity"], horizontal=True)
-            fig, ax = figure()
-            if chart == "Temperature" and dcol and tcol:
-                sns.lineplot(data=df, x=dcol, y=tcol, ax=ax)
-                ax.set_title("Temperature Over Time")
-            elif chart == "Precipitation" and dcol and pcol:
-                sns.lineplot(data=df, x=dcol, y=pcol, ax=ax)
-                ax.set_title("Precipitation Over Time")
-            elif chart == "Humidity" and dcol and hcol:
-                sns.lineplot(data=df, x=dcol, y=hcol, ax=ax)
-                ax.set_title("Humidity Over Time")
-            else:
-                ax.text(0.5, 0.5, "Required columns not found", ha="center", va="center", transform=ax.transAxes)
-            plt.xticks(rotation=45)
-            st.pyplot(fig)
-
-            preview_and_download(df, PATH_WEATHER.name, key_suffix="weather")
-        else:
-            st.info("No weather dataset found.")
+    if not sustainability_data['weather'].empty:
+        dcol = detect_col(sustainability_data['weather'], "datetime", "timestamp", "date", "time", prefer_startswith=True)
+        tcol = detect_col(sustainability_data['weather'], "temperature", "temp", "temp_f", "temp_c")
+        pcol = detect_col(sustainability_data['weather'], "precip", "rain", "precipitation")
+        hcol = detect_col(sustainability_data['weather'], "humidity", "rh")
+        
+        # Try to parse datetimes if needed
+        if dcol and not np.issubdtype(sustainability_data['weather'][dcol].dtype, np.datetime64):
+            with st.spinner("Parsing datetimes..."):
+                try:
+                    sustainability_data['weather'][dcol] = pd.to_datetime(sustainability_data['weather'][dcol], errors="coerce")
+                except Exception:
+                    pass
+        
+        cols = st.columns(3)
+        with cols[0]:
+            if tcol and not sustainability_data['weather'][tcol].dropna().empty:
+                st.metric("Last Temperature", f"{sustainability_data['weather'][tcol].dropna().iloc[-1]:.1f}°F")
+        with cols[1]:
+            if pcol and not sustainability_data['weather'][pcol].dropna().empty:
+                st.metric("Last Precip", f"{sustainability_data['weather'][pcol].dropna().iloc[-1]:.2f}in")
+        with cols[2]:
+            if hcol and not sustainability_data['weather'][hcol].dropna().empty:
+                st.metric("Last Humidity", f"{sustainability_data['weather'][hcol].dropna().iloc[-1]:.0f}%")
+        
+        # Combined weather chart
+        weather_data = sustainability_data['weather'].copy()
+        if dcol and tcol and pcol and hcol:
+            fig = go.Figure()
+            fig.add_trace(go.Scatter(x=weather_data[dcol], y=weather_data[tcol],
+                                    mode='lines+markers', name='Temperature'))
+            fig.add_trace(go.Scatter(x=weather_data[dcol], y=weather_data[pcol],
+                                    mode='lines+markers', name='Precipitation'))
+            fig.add_trace(go.Scatter(x=weather_data[dcol], y=weather_data[hcol],
+                                    mode='lines+markers', name='Humidity'))
+            fig.update_layout(title="Weather Metrics Over Time",
+                             xaxis_title="Date",
+                             yaxis_title="Value",
+                             hovermode='x unified')
+            st.plotly_chart(fig, use_container_width=True)
+        elif dcol and tcol:
+            fig = px.line(weather_data, x=dcol, y=tcol,
+                         title="Temperature Over Time",
+                         markers=True)
+            st.plotly_chart(fig, use_container_width=True)
 
 # ------------------ DATA EXPLORER ------------------
 elif page == "Data Explorer":

@@ -13,7 +13,7 @@ from sklearn.pipeline import make_pipeline
 
 # ------------------ App Config ------------------
 st.set_page_config(
-    page_title="KrowdGuide — Smart City Intelligence",
+    page_title="KrowdGuide — Deep Ellum Intelligence",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
@@ -62,6 +62,13 @@ st.markdown("""
         border-radius: 0 8px 8px 0;
         margin: 16px 0;
     }
+    .safe-box {
+        background: #f0fff4;
+        border-left: 4px solid #38a169;
+        padding: 12px;
+        border-radius: 0 8px 8px 0;
+        margin: 16px 0;
+    }
     .new-age-container {
         background: linear-gradient(135deg, #f0f9ff, #e6f7ff);
         padding: 20px;
@@ -72,7 +79,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.markdown('<div class="main-header">KrowdGuide</div>', unsafe_allow_html=True)
-st.markdown('<div class="sub-header">AI-Powered Urban Intelligence for Deep Ellum</div>', unsafe_allow_html=True)
+st.markdown('<div class="sub-header">Deep Ellum Intelligence Dashboard — Investor View</div>', unsafe_allow_html=True)
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
@@ -205,129 +212,123 @@ if not datasets["arrests"].empty:
 
 st.markdown('<div class="insight-box">💡 <strong>Insight:</strong> Real-time urban analytics for Deep Ellum — enabling data-driven decisions for businesses, city planners, and investors.</div>', unsafe_allow_html=True)
 
-# Tabs for clean navigation
-tab1, tab2, tab3, tab4 = st.tabs(["🚶 Mobility", "🌦️ Environment", "👮 Safety", "📊 Data"])
+# Main Dashboard View
+st.subheader("📊 Deep Ellum Comprehensive View")
 
-# Mobility
-with tab1:
-    st.subheader("Mobility Trends in Deep Ellum")
+# Weather Trends (using AccuWeather data conceptually)
+st.markdown("### 🌦️ Weather Trends (AccuWeather Integration Concept)")
+if not datasets["weather"].empty:
+    date_col = detect_col(datasets["weather"], "date")
+    temp_col = detect_col(datasets["weather"], "temp", "temperature")
+    precip_col = detect_col(datasets["weather"], "precip", "rain")
+    hum_col = detect_col(datasets["weather"], "humidity")
     
-    # Foot Traffic with Business Names
+    if date_col and temp_col:
+        df = datasets["weather"][[date_col, temp_col]].dropna().head(50)
+        df[date_col] = pd.to_datetime(df[date_col])
+        future_dates, preds = predict_series(df[date_col], df[temp_col])
+        if future_dates is not None:
+            pred_df = pd.DataFrame({date_col: future_dates, temp_col: preds, "type": "Forecast"})
+            actual_df = df.copy()
+            actual_df["type"] = "Historical"
+            full_df = pd.concat([actual_df, pred_df])
+            fig = px.line(full_df, x=date_col, y=temp_col, color="type", title="Temperature: Historical + 30-Day Forecast")
+            fig.update_layout(height=350)
+            st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.info("Weather data not available. Integrate with AccuWeather API for live trends.")
+
+# Traffic and Foot Traffic
+st.markdown("### 🚗 Traffic & Foot Traffic")
+col_a, col_b = st.columns(2)
+with col_a:
+    if not datasets["txdot"].empty:
+        date_col = detect_col(datasets["txdot"], "date")
+        count_col = detect_col(datasets["txdot"], "incidents")
+        if date_col and count_col:
+            fig = px.line(datasets["txdot"].head(50), x=date_col, y=count_col, title="Traffic Incidents (Last 50 Records)", markers=True)
+            fig.update_layout(height=300)
+            st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.info("No traffic data available.")
+        
+with col_b:
     if not datasets["visits"].empty:
         wk = detect_col(datasets["visits"], "week", "date")
         vcol = detect_col(datasets["visits"], "visits")
         venue_col = detect_col(datasets["visits"], "venue", "business", "location")
-        
         if wk and vcol:
             df_plot = datasets["visits"].head(50)
             if venue_col:
                 fig = px.line(df_plot, x=wk, y=vcol, color=venue_col, title="Foot Traffic by Business (Last 50 Records)", markers=True)
             else:
                 fig = px.line(df_plot, x=wk, y=vcol, title="Foot Traffic (Last 50 Records)", markers=True)
-            fig.update_layout(margin=dict(t=30), height=300)
+            fig.update_layout(height=300)
             st.plotly_chart(fig, use_container_width=True)
-    
-    # Bike/Ped + TxDOT
-    col_a, col_b = st.columns(2)
-    with col_a:
-        if not datasets["bike_ped"].empty:
-            date_col = detect_col(datasets["bike_ped"], "date")
-            count_col = detect_col(datasets["bike_ped"], "count")
-            loc_col = detect_col(datasets["bike_ped"], "location")
-            if date_col and count_col:
-                if loc_col:
-                    fig = px.line(datasets["bike_ped"].head(30), x=date_col, y=count_col, color=loc_col, title="Bike/Ped Activity by Location", markers=True)
-                else:
-                    fig = px.line(datasets["bike_ped"].head(30), x=date_col, y=count_col, title="Bike/Ped Activity", markers=True)
-                fig.update_layout(height=250)
-                st.plotly_chart(fig, use_container_width=True)
-    
-    with col_b:
-        if not datasets["txdot"].empty:
-            date_col = detect_col(datasets["txdot"], "date")
-            count_col = detect_col(datasets["txdot"], "incidents")
-            if date_col and count_col:
-                fig = px.bar(datasets["txdot"].head(30), x=date_col, y=count_col, title="TxDOT Incidents", text=count_col)
-                fig.update_layout(height=250, showlegend=False)
-                st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.info("No foot traffic data available.")
 
-# Environment (Weather)
-with tab2:
-    st.subheader("Environmental Intelligence")
-    if not datasets["weather"].empty:
-        date_col = detect_col(datasets["weather"], "date")
-        temp_col = detect_col(datasets["weather"], "temp", "temperature")
-        precip_col = detect_col(datasets["weather"], "precip", "rain")
-        hum_col = detect_col(datasets["weather"], "humidity")
-        
-        if date_col and temp_col:
-            df = datasets["weather"][[date_col, temp_col]].dropna().head(50)
-            df[date_col] = pd.to_datetime(df[date_col])
-            future_dates, preds = predict_series(df[date_col], df[temp_col])
-            if future_dates is not None:
-                pred_df = pd.DataFrame({date_col: future_dates, temp_col: preds, "type": "Forecast"})
-                actual_df = df.copy()
-                actual_df["type"] = "Historical"
-                full_df = pd.concat([actual_df, pred_df])
-                fig = px.line(full_df, x=date_col, y=temp_col, color="type", title="Temperature: Historical + 30-Day Forecast")
-                fig.update_layout(height=350)
-                st.plotly_chart(fig, use_container_width=True)
-        
-        # Precipitation and Humidity Trends
-        if precip_col and hum_col:
-            df_weather = datasets["weather"].head(50)
-            df_weather[date_col] = pd.to_datetime(df_weather[date_col])
-            fig2 = px.line(df_weather, x=date_col, y=[precip_col, hum_col], title="Precipitation & Humidity Trends")
-            fig2.update_layout(height=300)
-            st.plotly_chart(fig2, use_container_width=True)
-            
-    st.dataframe(datasets["weather"].head(20), use_container_width=True)
-
-# Public Safety
-with tab3:
-    st.subheader("Public Safety Overview")
-    
-    # Arrests
+# Safety (Arrests & Crimes)
+st.markdown("### 👮 Safety: Arrests & Crimes")
+col_c, col_d = st.columns(2)
+with col_c:
     if not datasets["arrests"].empty:
         cat_col = detect_col(datasets["arrests"], "offense", "crime", "category")
-        loc_col = detect_col(datasets["arrests"], "location", "area", "address")
-        
         if cat_col:
             top_offenses = datasets["arrests"][cat_col].value_counts().head(8)
             fig = px.bar(x=top_offenses.values, y=top_offenses.index, orientation='h', title="Top Offense Categories")
             fig.update_layout(height=300, margin=dict(l=120))
             st.plotly_chart(fig, use_container_width=True)
-        
+    else:
+        st.info("No arrest data available.")
+
+with col_d:
+    if not datasets["arrests"].empty:
+        loc_col = detect_col(datasets["arrests"], "location", "area", "address")
         if loc_col:
             loc_counts = datasets["arrests"][loc_col].value_counts().head(8)
             fig2 = px.bar(x=loc_counts.values, y=loc_counts.index, orientation='h', title="Arrests by Location")
             fig2.update_layout(height=300, margin=dict(l=120))
             st.plotly_chart(fig2, use_container_width=True)
-    
-    # 311 Requests
+    else:
+        st.info("No arrest location data available.")
+
+# Bike/Ped & 311 Requests
+st.markdown("### 🚴 Bike/Ped & 311 Requests")
+col_e, col_f = st.columns(2)
+with col_e:
+    if not datasets["bike_ped"].empty:
+        date_col = detect_col(datasets["bike_ped"], "date")
+        count_col = detect_col(datasets["bike_ped"], "count")
+        loc_col = detect_col(datasets["bike_ped"], "location")
+        if date_col and count_col:
+            if loc_col:
+                fig = px.line(datasets["bike_ped"].head(50), x=date_col, y=count_col, color=loc_col, title="Bike/Ped Activity by Location", markers=True)
+            else:
+                fig = px.line(datasets["bike_ped"].head(50), x=date_col, y=count_col, title="Bike/Ped Activity", markers=True)
+            fig.update_layout(height=300)
+            st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.info("No bike/ped data available.")
+
+with col_f:
     if not datasets["service"].empty:
         req_col = detect_col(datasets["service"], "request", "topic")
         loc_col = detect_col(datasets["service"], "location")
-        
         if req_col:
             top_reqs = datasets["service"][req_col].value_counts().head(8)
             fig3 = px.pie(values=top_reqs.values, names=top_reqs.index, title="311 Request Distribution")
             fig3.update_layout(height=300)
             st.plotly_chart(fig3, use_container_width=True)
-        
-        if loc_col:
-            loc_reqs = datasets["service"][loc_col].value_counts().head(8)
-            fig4 = px.bar(x=loc_reqs.values, y=loc_reqs.index, orientation='h', title="311 Requests by Location")
-            fig4.update_layout(height=300, margin=dict(l=120))
-            st.plotly_chart(fig4, use_container_width=True)
+    else:
+        st.info("No 311 request data available.")
 
-# Raw Data
-with tab4:
-    st.subheader("Raw Data Explorer (Sample)")
-    for name, df in datasets.items():
-        if not df.empty:
-            with st.expander(f"📁 {name.replace('_', ' ').title()} ({len(df)} records)"):
-                st.dataframe(df.head(20), use_container_width=True)
+# Raw Data Explorer
+st.subheader("🔍 Raw Data Explorer (50 Records)")
+for name, df in datasets.items():
+    if not df.empty:
+        with st.expander(f"📁 {name.replace('_', ' ').title()} ({len(df)} records)"):
+            st.dataframe(df.head(50), use_container_width=True)
 
 # Footer
 st.divider()

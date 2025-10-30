@@ -1,23 +1,48 @@
-# Python
+# ---- Python ----
 __pycache__/
-*.pyc
+*.py[cod]
 *.pyo
 *.pyd
+*.so
+
+# ---- Environments ----
 .env
-.venv
-env/
+.venv/
 venv/
+env/
+ENV/
 
-# Streamlit cache
-.streamlit/
-.cache/
-*/__pycache__/
+# ---- Jupyter / Streamlit ----
+.ipynb_checkpoints
+.streamlit/secrets.toml
+.streamlit/config.toml
 
-# Data files
+# ---- Data files ----
 data/*.csv
-*.xlsx
-*.parquet
+data/*.csv.gz
+data/*.xlsx
+data/*.json
+data/*.parquet
+data/*.zip
 
-# OS files
-.DS_Store
+# Keep small sample datasets if needed
+!data/sample_*.csv
+
+# ---- Logs & Cache ----
+*.log
+*.tmp
+*.bak
+*.swp
+*.DS_Store
+.cache/
+__pycache__/
+
+# ---- IDE / Editor files ----
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+# ---- OS Files ----
 Thumbs.db
+.DS_Store

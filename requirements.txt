@@ -6,3 +6,4 @@ matplotlib
 humanize
 plotly
 scikit-learn
+openai

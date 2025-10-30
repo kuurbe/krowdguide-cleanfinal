@@ -1,0 +1,41 @@
+incident_number,division,nature_of_call,priority,unit_num,block,location,beat,reporting_area,status
+25-1920988,Central,7CE - City Equipment Accident,3,T244,1400.0,Botham Jean Blvd,151,2103,At Scene
+25-1922133,Southeast,DAEV-Dist Armed Encounter Veh,1,F364,5500.0,S Buckner Blvd,318,1217,At Scene
+25-1922823,Southwest,15 - Assist Officer,1,C413,1200.0,N Bishop Ave,412,4095,At Scene
+25-1922823,Southwest,15 - Assist Officer,1,C454,1200.0,N Bishop Ave,412,4095,At Scene
+25-1922823,Southwest,15 - Assist Officer,1,C445,1200.0,N Bishop Ave,412,4095,At Scene
+25-1923091,South Central,21B - Business Hold Up,2,F740,3400.0,Bainbridge Dr,744,4360,At Scene
+25-1923092,Central,46 - CIT,2,RC131,1800.0,Corsicana St,135,2088,At Scene
+25-1923142,Central,6X - Major Dist (Violence),2,C142,5100.0,Ross Ave,146,1182,At Scene
+25-1923291,Southwest,DASF-Dist Active Shooter Foot,1,C427,,W Camp Wisdom Rd / Independence Dr,452,4359,At Scene
+25-1923291,Southwest,DASF-Dist Active Shooter Foot,1,C436,,W Camp Wisdom Rd / Independence Dr,452,4359,At Scene
+25-1922267,Southwest,24 - Abandoned Property,4,C412,5200.0,Darwin St,431,4441,At Scene
+25-1923183,Southwest,37F - Freeway Blockage,2,C428,3400.0,N WALTON WALKER BLVD NB,425,4026,At Scene
+25-1923352,Central,40/01 - Other,2,C115,5200.0,Victor St,114,1185,At Scene
+25-1923352,Central,40/01 - Other,2,C113,5200.0,Victor St,114,1185,At Scene
+25-1922792,South Central,6X - Major Dist (Violence),2,C714,,Stella Ave / Berwick Ave,714,4173,At Scene
+25-1922792,South Central,6X - Major Dist (Violence),2,F722,,Stella Ave / Berwick Ave,714,4173,At Scene
+25-1922666,Northeast,40/01 - Other,2,C221,,Greenville Ave / Park Ln,212,4528,At Scene
+25-1922906,Northwest,6X - Major Dist (Violence),2,C512,10800.0,Denton Dr,534,3041,At Scene
+25-1923493,Central,21R - Res Panic  Alarm,2,E154,5600.0,Reiger Ave,112,1187,At Scene
+25-1923374,Central,40 - Other,3,C114,5300.0,Monticello Ave,141,1143,At Scene
+25-1923471,Central,6X - Major Dist (Violence),2,L370,1500.0,Jackson St,134,2073,At Scene
+25-1923471,Central,6X - Major Dist (Violence),2,L351,1500.0,Jackson St,134,2073,At Scene
+25-1923501,Northwest,32 - Suspicious Person,2,F532,6100.0,Maple Ave,513,3093,At Scene
+25-1923360,North Central,7X - Major Accident,2,F652,,Frankford Rd / Gibbons Dr,613,6058,At Scene
+25-1923371,Central,6X - Major Dist (Violence),2,E122,2400.0,N Haskell Ave,155,2011,At Scene
+25-1923371,Central,6X - Major Dist (Violence),2,E152,2400.0,N Haskell Ave,155,2011,At Scene
+25-1923371,Central,6X - Major Dist (Violence),2,E151,2400.0,N Haskell Ave,155,2011,At Scene
+25-1923371,Central,6X - Major Dist (Violence),2,E142,2400.0,N Haskell Ave,155,2011,At Scene
+25-1923420,Northeast,46 - CIT,2,RC132,8700.0,La Prada Dr,224,1180,At Scene
+25-1923420,Northeast,46 - CIT,2,F262,8700.0,La Prada Dr,224,1180,At Scene
+25-1923420,Northeast,46 - CIT,2,F263,8700.0,La Prada Dr,224,1180,At Scene
+25-1923520,Central,46 - CIT,2,L371,300.0,S Akard St,134,2073,At Scene
+25-1923520,Central,46 - CIT,2,RC139,300.0,S Akard St,134,2073,At Scene
+25-1923416,North Central,40/01 - Other,2,C613,13200.0,Esperanza Rd,643,4521,At Scene
+25-1922938,South Central,46 - CIT,2,RC137,1100.0,S Ewing Ave,711,6050,At Scene
+25-1923611,North Central,40 - Other,3,X12123,8800.0,Jourdan Way,652,1079,At Scene
+25-1922506,South Central,40/01 - Other,2,A709,4900.0,Wadsworth Dr,732,4310,At Scene
+25-1918526,Southeast,19 - Shooting,1,C376,2600.0,ANDERSON ST,348,2189,At Scene
+25-1918526,Southeast,19 - Shooting,1,C314,2600.0,ANDERSON ST,348,2189,At Scene
+25-1918526,Southeast,19 - Shooting,1,C374,2600.0,ANDERSON ST,348,2189,At Scene

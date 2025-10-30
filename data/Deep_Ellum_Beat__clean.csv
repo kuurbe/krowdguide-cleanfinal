@@ -1,0 +1,46 @@
+incident_number,division,nature_of_call,priority,unit_num,block,location,beat,reporting_area,status
+25-1920988,Central,7CE - City Equipment Accident,3,T244,1400.0,Botham Jean Blvd,151,2103,At Scene
+25-1922133,Southeast,DAEV-Dist Armed Encounter Veh,1,F364,5500.0,S Buckner Blvd,318,1217,At Scene
+25-1922795,North Central,7X - Major Accident,2,C612,13400.0,PRESTON RD,634,1018,At Scene
+25-1923091,South Central,21B - Business Hold Up,2,F740,3400.0,Bainbridge Dr,744,4360,At Scene
+25-1923092,Central,46 - CIT,2,RC131,1800.0,Corsicana St,135,2088,At Scene
+25-1922267,Southwest,24 - Abandoned Property,4,C412,5200.0,Darwin St,431,4441,At Scene
+25-1922792,South Central,6X - Major Dist (Violence),2,F722,,Stella Ave / Berwick Ave,714,4173,At Scene
+25-1922792,South Central,6X - Major Dist (Violence),2,C714,,Stella Ave / Berwick Ave,714,4173,At Scene
+25-1922666,Northeast,40/01 - Other,2,C221,,Greenville Ave / Park Ln,212,4528,At Scene
+25-1923501,Northwest,32 - Suspicious Person,2,F542,6100.0,Maple Ave,513,3093,At Scene
+25-1923501,Northwest,32 - Suspicious Person,2,F532,6100.0,Maple Ave,513,3093,At Scene
+25-1923371,Central,6X - Major Dist (Violence),2,E151,2400.0,N Haskell Ave,155,2011,At Scene
+25-1923420,Northeast,46 - CIT,2,RC132,8700.0,La Prada Dr,224,1180,At Scene
+25-1923420,Northeast,46 - CIT,2,F262,8700.0,La Prada Dr,224,1180,At Scene
+25-1923520,Central,46 - CIT,2,RC139,300.0,S Akard St,134,2073,At Scene
+25-1922938,South Central,46 - CIT,2,RC137,1100.0,S Ewing Ave,711,6050,At Scene
+25-1922506,South Central,40/01 - Other,2,A709,4900.0,Wadsworth Dr,732,4310,At Scene
+25-1922771,Central,30 - Prisoner,3,E142,2400.0,N Haskell Ave,155,2011,At Scene
+25-1923624,Southwest,37F - Freeway Blockage,2,C428,,N Walton Walker Blvd Sb / Dallas Ft Worth Tpke Eb,425,4076,At Scene
+25-1923308,Northeast,6X - Major Dist (Violence),2,F278,11200.0,Garland Rd,232,1114,At Scene
+25-1923267,Central,40 - Other,3,C115,2200.0,Botham Jean Blvd,152,2132,At Scene
+25-1923267,Central,40 - Other,3,E135,2200.0,Botham Jean Blvd,152,2132,At Scene
+25-1923505,North Central,7X - Major Accident,2,F652,,Dallas Pkwy,613,6058,At Scene
+25-1923729,Southwest,6X - Major Dist (Violence),2,C421,,N COCKRELL HILL RD,416,4077,At Scene
+25-1921759,Central,09V - UUMV,4,C153,5300.0,Lindsley Ave,113,1208,At Scene
+25-1923658,Southwest,46 - CIT,2,RC134,300.0,S Hampton Rd,442,4129,At Scene
+25-1923683,Central,6X - Major Dist (Violence),2,L351,1700.0,Pacific Ave,134,2063,At Scene
+25-1923682,Northeast,7X - Major Accident,2,T115,,Greenville Ave / Royal Ln,213,1040,At Scene
+25-1923753,Southwest,6XEA - Disturbance Emerg Amb,1,C427,2400.0,Fort Worth Ave,415,4087,At Scene
+25-1923781,Central,40/01 - Other,2,E122,3100.0,Lemmon Ave E,124,2003,At Scene
+25-1923781,Central,40/01 - Other,2,E164,3100.0,Lemmon Ave E,124,2003,At Scene
+25-1921324,Southeast,6X - Major Dist (Violence),2,A356,8100.0,Barclay St,324,1243,At Scene
+25-1923342,Southeast,6X - Major Dist (Violence),2,C324,,Seco Blvd / S Buckner Blvd,332,1253,At Scene
+25-1923427,Southwest,40 - Other,3,E435,7600.0,S Westmoreland Rd,451,4380,At Scene
+25-1923398,South Central,13 - Prowler,2,F754,400.0,Burrell Dr,743,4347,At Scene
+25-1923737,Central,6X - Major Dist (Violence),2,E133,5000.0,Ross Ave,145,1182,At Scene
+25-1923692,North Central,40/01 - Other,2,C614,,James Temple Dr / Montfort Dr,634,1017,At Scene
+25-1922210,Northeast,6X - Major Dist (Violence),2,A216,10000.0,Whitehurst Dr,243,4525,At Scene
+25-1923187,Northeast,6X - Major Dist (Violence),2,OT205,11200.0,Garland Rd,232,1114,At Scene
+25-1923102,Northwest,6X - Major Dist (Violence),2,E515,3300.0,Sheila Ln,538,4553,At Scene
+25-1923102,Northwest,6X - Major Dist (Violence),2,F541,3300.0,Sheila Ln,538,4553,At Scene
+25-1923797,Southwest,7XF - Major Accident Freeway,1,C458,,408  Sb / Grady Niblo Rd,433,4444,At Scene
+25-1918526,Southeast,19 - Shooting,1,C314,2600.0,ANDERSON ST,348,2189,At Scene
+25-1918526,Southeast,19 - Shooting,1,C376,2600.0,ANDERSON ST,348,2189,At Scene
+25-1918526,Southeast,19 - Shooting,1,C374,2600.0,ANDERSON ST,348,2189,At Scene

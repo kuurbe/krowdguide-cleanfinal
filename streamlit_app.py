@@ -9,7 +9,7 @@ st.title("📍 Deep Ellum Venue Foot Traffic Dashboard")
 # 📂 Load Data
 @st.cache_data
 def load_data():
-    df = pd.read_csv("data/Trees_vs_DadaDallas_Sep2025.csv")
+    df = pd.read_csv("data/deep_ellum_visits.csv")  # Update path if needed
     return df
 
 df = load_data()

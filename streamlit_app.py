@@ -1,4 +1,4 @@
-# streamlit_app.py
+# Removed the weather tab and added a weather widget
 import os
 from pathlib import Path
 from datetime import datetime, timedelta
@@ -97,6 +97,10 @@ st.markdown("""
 st.markdown('<div class="main-header">KrowdGuide</div>', unsafe_allow_html=True)
 st.markdown('<div class="sub-header">Deep Ellum Intelligence Dashboard — Investor View</div>', unsafe_allow_html=True)
 
+# Weather Widget
+st.markdown('<a class="weatherwidget-io" href="https://forecast7.com/en/32d78n96d80/dallas/" data-label_1="DALLAS" data-label_2="WEATHER" data-theme="original" >DALLAS WEATHER</a>', unsafe_allow_html=True)
+st.markdown('<script>!function(d,s,id){var js,fjs=d.getElementsByTagName(s)[0];if(!d.getElementById(id)){js=d.createElement(s);js.id=id;js.src=\'https://weatherwidget.io/js/widget.min.js\';fjs.parentNode.insertBefore(js,fjs);}}(document,\'script\',\'weatherwidget-io-js\');</script>', unsafe_allow_html=True)
+
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
 
@@ -168,17 +172,23 @@ datasets = {
 st.sidebar.header("Filters")
 date_range = st.sidebar.date_input("Select Date Range", value=[datetime.now() - timedelta(days=365), datetime.now()])
 
-# Process datasets based on filters
+# Process datasets based on filters — ensure all keys exist
 filtered_datasets = {}
 for key, df in datasets.items():
-    if not df.empty:
-        date_col = detect_col(df, "date", "datetime", "time")
-        if date_col:
-            df[date_col] = pd.to_datetime(df[date_col])
-            start_date, end_date = date_range
-            filtered_datasets[key] = df[(df[date_col] >= start_date) & (df[date_col] <= end_date)]
-        else:
-            filtered_datasets[key] = df
+    # Always include the key, even if empty
+    if df.empty:
+        filtered_datasets[key] = df
+        continue
+
+    date_col = detect_col(df, "date", "datetime", "time")
+    if date_col:
+        df = df.copy()
+        df[date_col] = pd.to_datetime(df[date_col], errors='coerce')
+        df = df.dropna(subset=[date_col])
+        start_date, end_date = date_range
+        filtered_datasets[key] = df[(df[date_col] >= pd.Timestamp(start_date)) & (df[date_col] <= pd.Timestamp(end_date))]
+    else:
+        filtered_datasets[key] = df
 
 # ------------------ Anonymize Arrests Data ------------------
 if not filtered_datasets["arrests"].empty:
@@ -261,8 +271,8 @@ if not filtered_datasets["arrests"].empty:
 
 st.markdown('<div class="insight-box">💡 <strong>Insight:</strong> Real-time urban analytics for Deep Ellum — enabling data-driven decisions for businesses, city planners, and investors.</div>', unsafe_allow_html=True)
 
-# Tabs for interactive views
-tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(["🚗 Traffic", "🚶 Foot Traffic", "🚴 Bike/Ped", "👮 Safety", "311", "Weather", "🔮 Predictions"])
+# Tabs for interactive views (removed weather tab)
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["🚗 Traffic", "🚶 Foot Traffic", "🚴 Bike/Ped", "👮 Safety", "311", "🔮 Predictions"])
 
 # Traffic View
 with tab1:
@@ -437,53 +447,8 @@ with tab5:
     else:
         st.info("No 311 request data available.")
 
-# Weather View
-with tab6:
-    st.subheader("Weather Data")
-    if not filtered_datasets["weather"].empty:
-        date_col = detect_col(filtered_datasets["weather"], "time", "date", "datetime")
-        temp_col = detect_col(filtered_datasets["weather"], "temp", "temperature", "temperature_2m_max")
-        humidity_col = detect_col(filtered_datasets["weather"], "humidity", "relative_humidity_2m")
-        precip_col = detect_col(filtered_datasets["weather"], "precipitation", "precipitation_sum")
-        
-        if date_col and temp_col:
-            df = filtered_datasets["weather"][[date_col, temp_col]].dropna()
-            df[date_col] = pd.to_datetime(df[date_col])
-            fig = px.line(df, x=date_col, y=temp_col, title="Temperature Over Time", markers=True)
-            st.plotly_chart(fig, use_container_width=True)
-        
-        if humidity_col:
-            df_humidity = filtered_datasets["weather"][[date_col, humidity_col]].dropna()
-            fig2 = px.line(df_humidity, x=date_col, y=humidity_col, title="Humidity Over Time", markers=True)
-            st.plotly_chart(fig2, use_container_width=True)
-        
-        if precip_col:
-            df_precip = filtered_datasets["weather"][[date_col, precip_col]].dropna()
-            fig3 = px.line(df_precip, x=date_col, y=precip_col, title="Precipitation Over Time", markers=True)
-            st.plotly_chart(fig3, use_container_width=True)
-        
-        # Dallas Heatmap
-        st.subheader("Dallas Weather Heatmap")
-        if date_col and temp_col:
-            df_temp = filtered_datasets["weather"][[date_col, temp_col]].dropna()
-            df_temp['date'] = df_temp[date_col].dt.date
-            df_temp['hour'] = df_temp[date_col].dt.hour
-            heatmap_df = df_temp.pivot_table(index='date', columns='hour', values=temp_col, fill_value=0)
-            fig4 = px.imshow(
-                heatmap_df.values,
-                x=heatmap_df.columns,
-                y=heatmap_df.index,
-                title="Dallas Temperature Heatmap (Date vs Hour)",
-                labels=dict(x="Hour of Day", y="Date", color="Temperature (°C)")
-            )
-            st.plotly_chart(fig4, use_container_width=True)
-        
-        st.dataframe(filtered_datasets["weather"], use_container_width=True)
-    else:
-        st.info("No weather data available.")
-
 # Predictions View
-with tab7:
+with tab6:
     st.subheader("Predictive Analytics")
     if not filtered_datasets["weather"].empty:
         date_col = detect_col(filtered_datasets["weather"], "time", "date", "datetime")

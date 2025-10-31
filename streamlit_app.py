@@ -262,37 +262,10 @@ if not filtered_datasets["arrests"].empty:
 st.markdown('<div class="insight-box">💡 <strong>Insight:</strong> Real-time urban analytics for Deep Ellum — enabling data-driven decisions for businesses, city planners, and investors.</div>', unsafe_allow_html=True)
 
 # Tabs for interactive views
-tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(["📈 Historical Data", "🚗 Traffic", "🚶 Foot Traffic", "🚴 Bike/Ped", "👮 Safety", "311", "🔮 Predictions"])
-
-# Historical Data View
-with tab1:
-    st.subheader("Historical Data Overview")
-    combined_df = pd.DataFrame()
-    
-    for key, df in filtered_datasets.items():
-        if not df.empty:
-            date_col = detect_col(df, "date", "datetime", "time")
-            if date_col:
-                df_subset = df[[date_col]].copy()
-                df_subset['type'] = key
-                df_subset['count'] = len(df)
-                combined_df = pd.concat([df_subset, combined_df], ignore_index=True)
-    
-    if not combined_df.empty:
-        fig = px.line(combined_df, x=date_col, y='count', color='type', title="Historical Data Over Time")
-        st.plotly_chart(fig, use_container_width=True)
-        
-        # Detailed historical data table
-        st.subheader("Detailed Historical Data")
-        for key, df in filtered_datasets.items():
-            if not df.empty:
-                st.markdown(f"### {key.replace('_', ' ').title()}")
-                st.dataframe(df, use_container_width=True)
-    else:
-        st.info("No data available for the selected date range.")
+tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(["🚗 Traffic", "🚶 Foot Traffic", "🚴 Bike/Ped", "👮 Safety", "311", "Weather", "🔮 Predictions"])
 
 # Traffic View
-with tab2:
+with tab1:
     st.subheader("Traffic Data")
     if not filtered_datasets["txdot"].empty:
         date_col = detect_col(filtered_datasets["txdot"], "date")
@@ -323,7 +296,7 @@ with tab2:
         st.info("No traffic data available.")
 
 # Foot Traffic View
-with tab3:
+with tab2:
     st.subheader("Foot Traffic Data")
     if not filtered_datasets["visits"].empty:
         wk = detect_col(filtered_datasets["visits"], "week", "date")
@@ -357,7 +330,7 @@ with tab3:
         st.info("No foot traffic data available.")
 
 # Bike/Ped View
-with tab4:
+with tab3:
     st.subheader("Bike/Ped Data")
     if not filtered_datasets["bike_ped"].empty:
         date_col = detect_col(filtered_datasets["bike_ped"], "date")
@@ -391,7 +364,7 @@ with tab4:
         st.info("No bike/ped data available.")
 
 # Safety View
-with tab5:
+with tab4:
     st.subheader("Safety Data (Arrests & Crimes)")
     if not filtered_datasets["arrests"].empty:
         cat_col = detect_col(filtered_datasets["arrests"], "offense", "crime", "category")
@@ -428,7 +401,7 @@ with tab5:
         st.info("No arrest data available.")
 
 # 311 View
-with tab6:
+with tab5:
     st.subheader("311 Requests Data")
     if not filtered_datasets["service"].empty:
         req_col = detect_col(filtered_datasets["service"], "request", "topic")
@@ -463,6 +436,51 @@ with tab6:
         st.dataframe(filtered_datasets["service"], use_container_width=True)
     else:
         st.info("No 311 request data available.")
+
+# Weather View
+with tab6:
+    st.subheader("Weather Data")
+    if not filtered_datasets["weather"].empty:
+        date_col = detect_col(filtered_datasets["weather"], "time", "date", "datetime")
+        temp_col = detect_col(filtered_datasets["weather"], "temp", "temperature", "temperature_2m_max")
+        humidity_col = detect_col(filtered_datasets["weather"], "humidity", "relative_humidity_2m")
+        precip_col = detect_col(filtered_datasets["weather"], "precipitation", "precipitation_sum")
+        
+        if date_col and temp_col:
+            df = filtered_datasets["weather"][[date_col, temp_col]].dropna()
+            df[date_col] = pd.to_datetime(df[date_col])
+            fig = px.line(df, x=date_col, y=temp_col, title="Temperature Over Time", markers=True)
+            st.plotly_chart(fig, use_container_width=True)
+        
+        if humidity_col:
+            df_humidity = filtered_datasets["weather"][[date_col, humidity_col]].dropna()
+            fig2 = px.line(df_humidity, x=date_col, y=humidity_col, title="Humidity Over Time", markers=True)
+            st.plotly_chart(fig2, use_container_width=True)
+        
+        if precip_col:
+            df_precip = filtered_datasets["weather"][[date_col, precip_col]].dropna()
+            fig3 = px.line(df_precip, x=date_col, y=precip_col, title="Precipitation Over Time", markers=True)
+            st.plotly_chart(fig3, use_container_width=True)
+        
+        # Dallas Heatmap
+        st.subheader("Dallas Weather Heatmap")
+        if date_col and temp_col:
+            df_temp = filtered_datasets["weather"][[date_col, temp_col]].dropna()
+            df_temp['date'] = df_temp[date_col].dt.date
+            df_temp['hour'] = df_temp[date_col].dt.hour
+            heatmap_df = df_temp.pivot_table(index='date', columns='hour', values=temp_col, fill_value=0)
+            fig4 = px.imshow(
+                heatmap_df.values,
+                x=heatmap_df.columns,
+                y=heatmap_df.index,
+                title="Dallas Temperature Heatmap (Date vs Hour)",
+                labels=dict(x="Hour of Day", y="Date", color="Temperature (°C)")
+            )
+            st.plotly_chart(fig4, use_container_width=True)
+        
+        st.dataframe(filtered_datasets["weather"], use_container_width=True)
+    else:
+        st.info("No weather data available.")
 
 # Predictions View
 with tab7:

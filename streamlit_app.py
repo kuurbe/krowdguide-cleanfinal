@@ -159,7 +159,7 @@ datasets = {
     "visits": load_csv(find_file("DeepEllumVisits") or find_file("WeeklyVisits")) if find_file("DeepEllumVisits") or find_file("WeeklyVisits") else pd.DataFrame(),
     "bike_ped": load_csv(find_file("bike_pedestrian") or find_file("bike") or find_file("pedestrian")) if find_file("bike_pedestrian") or find_file("bike") or find_file("pedestrian") else pd.DataFrame(),
     "txdot": load_csv(find_file("TxDOT")) if find_file("TxDOT") else pd.DataFrame(),
-    "weather": load_csv(find_file("DeepWeather") or find_file("weather")) if find_file("DeepWeather") or find_file("weather") else pd.DataFrame(),
+    "weather": load_csv(find_file("DeepWeather") or find_file("weather") or find_file("DeepEllumWeather")) if find_file("DeepWeather") or find_file("weather") or find_file("DeepEllumWeather") else pd.DataFrame(),
     "service": load_csv(find_file("311") or find_file("service")) if find_file("311") or find_file("service") else pd.DataFrame(),
     "arrests": load_csv(find_file("arrests") or find_file("crime") or find_file("police")) if find_file("arrests") or find_file("crime") or find_file("police") else pd.DataFrame(),
 }
@@ -172,13 +172,27 @@ date_range = st.sidebar.date_input("Select Date Range", value=[datetime.now() - 
 filtered_datasets = {}
 for key, df in datasets.items():
     if not df.empty:
-        date_col = detect_col(df, "date", "datetime")
+        date_col = detect_col(df, "date", "datetime", "time")
         if date_col:
             df[date_col] = pd.to_datetime(df[date_col])
             start_date, end_date = date_range
             filtered_datasets[key] = df[(df[date_col] >= start_date) & (df[date_col] <= end_date)]
         else:
             filtered_datasets[key] = df
+
+# ------------------ Anonymize Arrests Data ------------------
+if not filtered_datasets["arrests"].empty:
+    # Identify sensitive columns
+    sensitive_cols = []
+    for col in filtered_datasets["arrests"].columns:
+        col_lower = col.lower()
+        if any(sensitive in col_lower for sensitive in ["name", "race", "ethnicity", "address", "officer"]):
+            sensitive_cols.append(col)
+    
+    # Remove sensitive columns
+    for col in sensitive_cols:
+        if col in filtered_datasets["arrests"].columns:
+            filtered_datasets["arrests"] = filtered_datasets["arrests"].drop(columns=[col])
 
 # ------------------ Executive Dashboard ------------------
 # Golden Ticket Header
@@ -248,25 +262,32 @@ if not filtered_datasets["arrests"].empty:
 st.markdown('<div class="insight-box">💡 <strong>Insight:</strong> Real-time urban analytics for Deep Ellum — enabling data-driven decisions for businesses, city planners, and investors.</div>', unsafe_allow_html=True)
 
 # Tabs for interactive views
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["📈 All Data", "🚗 Traffic", "🚶 Foot Traffic", "🚴 Bike/Ped", "👮 Safety", "311"])
+tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(["📈 Historical Data", "🚗 Traffic", "🚶 Foot Traffic", "🚴 Bike/Ped", "👮 Safety", "311", "🔮 Predictions"])
 
-# All Data View
+# Historical Data View
 with tab1:
-    st.subheader("All Data Combined View")
+    st.subheader("Historical Data Overview")
     combined_df = pd.DataFrame()
     
     for key, df in filtered_datasets.items():
         if not df.empty:
-            date_col = detect_col(df, "date", "datetime")
+            date_col = detect_col(df, "date", "datetime", "time")
             if date_col:
                 df_subset = df[[date_col]].copy()
                 df_subset['type'] = key
                 df_subset['count'] = len(df)
-                combined_df = pd.concat([combined_df, df_subset], ignore_index=True)
+                combined_df = pd.concat([df_subset, combined_df], ignore_index=True)
     
     if not combined_df.empty:
-        fig = px.line(combined_df, x=date_col, y='count', color='type', title="All Data Over Time")
+        fig = px.line(combined_df, x=date_col, y='count', color='type', title="Historical Data Over Time")
         st.plotly_chart(fig, use_container_width=True)
+        
+        # Detailed historical data table
+        st.subheader("Detailed Historical Data")
+        for key, df in filtered_datasets.items():
+            if not df.empty:
+                st.markdown(f"### {key.replace('_', ' ').title()}")
+                st.dataframe(df, use_container_width=True)
     else:
         st.info("No data available for the selected date range.")
 
@@ -442,6 +463,34 @@ with tab6:
         st.dataframe(filtered_datasets["service"], use_container_width=True)
     else:
         st.info("No 311 request data available.")
+
+# Predictions View
+with tab7:
+    st.subheader("Predictive Analytics")
+    if not filtered_datasets["weather"].empty:
+        date_col = detect_col(filtered_datasets["weather"], "time", "date", "datetime")
+        temp_col = detect_col(filtered_datasets["weather"], "temp", "temperature", "temperature_2m_max")
+        
+        if date_col and temp_col:
+            df = filtered_datasets["weather"][[date_col, temp_col]].dropna().head(50)
+            df[date_col] = pd.to_datetime(df[date_col])
+            future_dates, preds = predict_series(df[date_col], df[temp_col])
+            if future_dates is not None:
+                pred_df = pd.DataFrame({date_col: future_dates, temp_col: preds, "type": "Predicted"})
+                actual_df = df.copy()
+                actual_df["type"] = "Historical"
+                
+                full_df = pd.concat([actual_df, pred_df])
+                fig = px.line(full_df, x=date_col, y=temp_col, color="type", title="Weather Prediction: Historical + Forecast")
+                st.plotly_chart(fig, use_container_width=True)
+                
+                # Show prediction table
+                st.subheader("Weather Prediction Table")
+                st.dataframe(pred_df, use_container_width=True)
+        else:
+            st.info("No weather data available for predictions.")
+    else:
+        st.info("No weather data available for predictions.")
 
 # Footer
 st.divider()

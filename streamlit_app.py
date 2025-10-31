@@ -1,4 +1,4 @@
-# Removed the weather tab and added a weather widget
+# streamlit_app.py
 import os
 from pathlib import Path
 from datetime import datetime, timedelta
@@ -8,9 +8,7 @@ import numpy as np
 import humanize
 import plotly.express as px
 import plotly.graph_objects as go
-from sklearn.linear_model import LinearRegression
-from sklearn.preprocessing import PolynomialFeatures
-from sklearn.pipeline import make_pipeline
+import requests
 
 # ------------------ App Config ------------------
 st.set_page_config(
@@ -97,10 +95,6 @@ st.markdown("""
 st.markdown('<div class="main-header">KrowdGuide</div>', unsafe_allow_html=True)
 st.markdown('<div class="sub-header">Deep Ellum Intelligence Dashboard — Investor View</div>', unsafe_allow_html=True)
 
-# Weather Widget
-st.markdown('<a class="weatherwidget-io" href="https://forecast7.com/en/32d78n96d80/dallas/" data-label_1="DALLAS" data-label_2="WEATHER" data-theme="original" >DALLAS WEATHER</a>', unsafe_allow_html=True)
-st.markdown('<script>!function(d,s,id){var js,fjs=d.getElementsByTagName(s)[0];if(!d.getElementById(id)){js=d.createElement(s);js.id=id;js.src=\'https://weatherwidget.io/js/widget.min.js\';fjs.parentNode.insertBefore(js,fjs);}}(document,\'script\',\'weatherwidget-io-js\');</script>', unsafe_allow_html=True)
-
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
 
@@ -128,24 +122,6 @@ def detect_col(df: pd.DataFrame, *keys):
             if k in c or c.startswith(k):
                 return df.columns[i]
     return None
-
-def predict_series(dates, values, days_ahead=30):
-    if len(dates) < 2:
-        return None, None
-    df = pd.DataFrame({"date": pd.to_datetime(dates), "value": values})
-    df = df.dropna().sort_values("date").drop_duplicates("date")
-    if len(df) < 2:
-        return None, None
-    df["days"] = (df["date"] - df["date"].min()).dt.days
-    X = df[["days"]].values
-    y = df["value"].values
-    model = make_pipeline(PolynomialFeatures(degree=min(3, len(df)-1)), LinearRegression())
-    model.fit(X, y)
-    last_day = df["days"].max()
-    future_days = np.arange(last_day + 1, last_day + days_ahead + 1).reshape(-1, 1)
-    future_dates = [df["date"].max() + timedelta(days=i) for i in range(1, days_ahead+1)]
-    preds = model.predict(future_days)
-    return future_dates, preds
 
 # ------------------ Load Data ------------------
 CSV_PATHS = sorted(list(DATA_DIR.glob("*.csv")) + list(DATA_DIR.glob("*.csv.gz")))
@@ -269,10 +245,74 @@ if not filtered_datasets["arrests"].empty:
             </div>
             """, unsafe_allow_html=True)
 
-st.markdown('<div class="insight-box">💡 <strong>Insight:</strong> Real-time urban analytics for Deep Ellum — enabling data-driven decisions for businesses, city planners, and investors.</div>', unsafe_allow_html=True)
+# Insight Box with Black Text
+st.markdown('<div class="insight-box"><span style="color: black;">💡 <strong>Insight:</strong> Real-time urban analytics for Deep Ellum — enabling data-driven decisions for businesses, city planners, and investors.</span></div>', unsafe_allow_html=True)
 
-# Tabs for interactive views (removed weather tab)
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["🚗 Traffic", "🚶 Foot Traffic", "🚴 Bike/Ped", "👮 Safety", "311", "🔮 Predictions"])
+# Weather Widget (Python-based)
+st.subheader("Current Dallas Weather")
+try:
+    # Use coordinates for Dallas
+    latitude = 32.78
+    longitude = -96.80
+    api_url = f"https://api.open-meteo.com/v1/forecast?latitude={latitude}&longitude={longitude}&current_weather=true&timezone=America/Chicago"
+
+    response = requests.get(api_url, timeout=10)
+    response.raise_for_status()
+    data = response.json()
+    current = data.get('current_weather', {})
+    
+    temp = current.get('temperature', 'N/A')
+    wind_speed = current.get('windspeed', 'N/A')
+    wind_dir = current.get('winddirection', 'N/A')
+    condition = current.get('weathercode', 'N/A')
+    
+    # Map weather codes to descriptions (simplified)
+    weather_codes = {
+        0: "Clear sky",
+        1: "Mainly clear",
+        2: "Partly cloudy",
+        3: "Overcast",
+        45: "Fog",
+        48: "Depositing rime fog",
+        51: "Light drizzle",
+        53: "Moderate drizzle",
+        55: "Dense drizzle",
+        56: "Light freezing drizzle",
+        57: "Dense freezing drizzle",
+        61: "Slight rain",
+        63: "Moderate rain",
+        65: "Heavy rain",
+        66: "Light freezing rain",
+        67: "Heavy freezing rain",
+        71: "Slight snow fall",
+        73: "Moderate snow fall",
+        75: "Heavy snow fall",
+        77: "Snow grains",
+        80: "Slight rain showers",
+        81: "Moderate rain showers",
+        82: "Violent rain showers",
+        85: "Slight snow showers",
+        86: "Heavy snow showers",
+        95: "Thunderstorm",
+        96: "Thunderstorm with slight hail",
+        99: "Thunderstorm with heavy hail"
+    }
+    condition_desc = weather_codes.get(condition, f"Code {condition}")
+
+    st.markdown(f"""
+    <div style="background: #f0f9ff; padding: 15px; border-radius: 10px; border: 1px solid #bee3f8;">
+        <h4>🌤️ Current Conditions</h4>
+        <p><strong>Temperature:</strong> {temp}°C</p>
+        <p><strong>Condition:</strong> {condition_desc}</p>
+        <p><strong>Wind:</strong> {wind_speed} m/s from {wind_dir}°</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+except Exception as e:
+    st.error("Unable to fetch weather data. Please check your internet connection.")
+
+# Tabs for interactive views (Removed Predictions Tab)
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["🚗 Traffic", "🚶 Foot Traffic", "🚴 Bike/Ped", "👮 Safety", "311", "🗺️ Map"])
 
 # Traffic View
 with tab1:
@@ -319,20 +359,14 @@ with tab2:
                 fig = px.line(filtered_datasets["visits"], x=wk, y=vcol, title="Foot Traffic", markers=True)
             st.plotly_chart(fig, use_container_width=True)
         
-        # Foot Traffic Heatmap
+        # Replace Heatmap with Pie Chart for Visitor Distribution
         if venue_col:
             venue_counts = filtered_datasets["visits"][venue_col].value_counts()
-            heatmap_df = pd.DataFrame({
+            pie_df = pd.DataFrame({
                 'Business': venue_counts.index,
                 'Visitor Count': venue_counts.values
             })
-            fig2 = px.density_heatmap(
-                data_frame=heatmap_df,
-                x='Business',
-                y='Visitor Count',
-                title="Foot Traffic Heatmap by Business",
-                labels=dict(x="Business", y="Visitor Count")
-            )
+            fig2 = px.pie(pie_df, values='Visitor Count', names='Business', title="Visitor Distribution by Business")
             st.plotly_chart(fig2, use_container_width=True)
             
         st.dataframe(filtered_datasets["visits"], use_container_width=True)
@@ -447,33 +481,37 @@ with tab5:
     else:
         st.info("No 311 request data available.")
 
-# Predictions View
+# Map View (New Tab)
 with tab6:
-    st.subheader("Predictive Analytics")
-    if not filtered_datasets["weather"].empty:
-        date_col = detect_col(filtered_datasets["weather"], "time", "date", "datetime")
-        temp_col = detect_col(filtered_datasets["weather"], "temp", "temperature", "temperature_2m_max")
-        
-        if date_col and temp_col:
-            df = filtered_datasets["weather"][[date_col, temp_col]].dropna().head(50)
-            df[date_col] = pd.to_datetime(df[date_col])
-            future_dates, preds = predict_series(df[date_col], df[temp_col])
-            if future_dates is not None:
-                pred_df = pd.DataFrame({date_col: future_dates, temp_col: preds, "type": "Predicted"})
-                actual_df = df.copy()
-                actual_df["type"] = "Historical"
-                
-                full_df = pd.concat([actual_df, pred_df])
-                fig = px.line(full_df, x=date_col, y=temp_col, color="type", title="Weather Prediction: Historical + Forecast")
-                st.plotly_chart(fig, use_container_width=True)
-                
-                # Show prediction table
-                st.subheader("Weather Prediction Table")
-                st.dataframe(pred_df, use_container_width=True)
-        else:
-            st.info("No weather data available for predictions.")
+    st.subheader("Deep Ellum Interactive Map")
+    st.write("This map overlays data points (e.g., incidents, visits) onto the Deep Ellum area. You can customize which dataset to display.")
+
+    # Load the map image (assuming it's named 'deepellum_map.png' in your data folder)
+    map_image_path = DATA_DIR / "deepellum_map.png"
+    if map_image_path.exists():
+        st.image(map_image_path, caption="Deep Ellum Housing TIF Area", use_column_width=True)
     else:
-        st.info("No weather data available for predictions.")
+        st.warning("Map image 'deepellum_map.png' not found in the data folder. Please add it for the map view to function correctly.")
+
+    # Example: Displaying a heatmap of arrest locations on the map
+    if not filtered_datasets["arrests"].empty:
+        loc_col = detect_col(filtered_datasets["arrests"], "location", "area", "address")
+        if loc_col:
+            # This is a simplified example. For a real heatmap, you would need to map location strings to coordinates.
+            # Since we don't have precise coordinates, we'll show a bar chart of locations as a fallback.
+            st.subheader("Arrest Locations (Fallback View)")
+            loc_counts = filtered_datasets["arrests"][loc_col].value_counts().head(10)
+            fig = px.bar(x=loc_counts.values, y=loc_counts.index, orientation='h', title="Top 10 Arrest Locations")
+            st.plotly_chart(fig, use_container_width=True)
+            
+            # Placeholder for future geo-visualization
+            st.info("A true geographic heatmap requires mapping location names to GPS coordinates. "
+                   "This feature can be developed further by creating a lookup table that maps street names from your data "
+                   "to their corresponding latitudes and longitudes, which can then be plotted on this map.")
+        else:
+            st.info("No location data found for arrests to display on the map.")
+    else:
+        st.info("No arrest data available for the map view.")
 
 # Footer
 st.divider()

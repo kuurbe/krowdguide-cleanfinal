@@ -306,7 +306,8 @@ try:
     # Use coordinates for Dallas
     latitude = 32.78
     longitude = -96.80
-    api_url = f"https://api.open-meteo.com/v1/forecast?latitude={latitude}&longitude={longitude}&current_weather=true&daily=temperature_2m_max,temperature_2m_min,precipitation_probability,weathercode,sunrise,sunset&timezone=America/Chicago"
+    # Fixed API call: Added timezone parameter
+    api_url = f"https://api.open-meteo.com/v1/forecast?latitude={latitude}&longitude={longitude}&current_weather=true&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,weathercode,sunrise,sunset&timezone=America/Chicago"
 
     response = requests.get(api_url, timeout=10)
     response.raise_for_status()
@@ -357,8 +358,8 @@ try:
     today_min = daily.get('temperature_2m_min', [])[0] if daily.get('temperature_2m_min') else 'N/A'
     sunrise = daily.get('sunrise', [])[0] if daily.get('sunrise') else 'N/A'
     sunset = daily.get('sunset', [])[0] if daily.get('sunset') else 'N/A'
-    humidity = daily.get('relative_humidity_2m', [])[0] if daily.get('relative_humidity_2m') else 'N/A'
-    precipitation_prob = daily.get('precipitation_probability', [])[0] if daily.get('precipitation_probability') else 'N/A'
+    # Note: Open-Meteo doesn't provide daily humidity or dew point in the same way as the webpage example.
+    # precipitation_prob = daily.get('precipitation_probability_max', [])[0] if daily.get('precipitation_probability_max') else 'N/A' # Changed key
 
     st.markdown(f"""
     <div class="weather-widget">
@@ -368,16 +369,15 @@ try:
         <p><strong>Wind:</strong> {wind_speed} m/s from {wind_dir}°</p>
         <p><strong>Today's Forecast:</strong> High {today_max}°C, Low {today_min}°C</p>
         <p><strong>Sunrise/Sunset:</strong> {sunrise} / {sunset}</p>
-        <p><strong>Humidity:</strong> {humidity}%</p>
-        <p><strong>Precipitation Prob.:</strong> {precipitation_prob}%</p>
     </div>
     """, unsafe_allow_html=True)
 
 except Exception as e:
-    st.error("Unable to fetch weather data. Please check your internet connection.")
+    st.error(f"Unable to fetch weather data. Error: {e}")
+    st.info("Please check your internet connection or the weather API availability.")
 
-# Tabs for interactive views (Removed Predictions Tab)
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["🚗 Traffic", "🚶 Foot Traffic", "🚴 Bike/Ped", "👮 Safety", "311", "🗺️ Map"])
+# Tabs for interactive views (Removed Map Tab)
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["🚗 Traffic", "🚶 Foot Traffic", "🚴 Bike/Ped", "👮 Safety", "311"])
 
 # Traffic View
 with tab1:
@@ -550,31 +550,6 @@ with tab5:
         st.dataframe(filtered_datasets["service"], width="stretch")
     else:
         st.info("No 311 request data available.")
-
-# Map View (New Tab)
-with tab6:
-    st.subheader("Deep Ellum Interactive Map")
-    st.write("This map displays the Deep Ellum area. You can overlay different data types on it.")
-
-    # Load the map image (Corrected path)
-    map_image_path = Path(r"C:\Users\juhco\OneDrive\Documents\krowdguide-cleanfinal\data\deepellummap.jpg")
-    if map_image_path.exists():
-        st.image(map_image_path, caption="Deep Ellum Housing TIF Area", width="stretch")
-    else:
-        st.warning(f"Map image '{map_image_path}' not found. Please verify the file path.")
-
-    # Example: Displaying a bar chart of arrest locations as a fallback
-    if not filtered_datasets["arrests"].empty:
-        loc_col = detect_col(filtered_datasets["arrests"], "location", "area", "address")
-        if loc_col:
-            st.subheader("Top Arrest Locations")
-            loc_counts = filtered_datasets["arrests"][loc_col].value_counts().head(10)
-            fig = px.bar(x=loc_counts.values, y=loc_counts.index, orientation='h', title="Top 10 Arrest Locations")
-            st.plotly_chart(fig, width="stretch")
-        else:
-            st.info("No location data found for arrests to display.")
-    else:
-        st.info("No arrest data available for the map view.")
 
 # Footer
 st.divider()

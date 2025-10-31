@@ -388,7 +388,7 @@ with tab1:
         loc_col = detect_col(filtered_datasets["txdot"], "location", "area")
         if date_col and count_col:
             fig = px.line(filtered_datasets["txdot"], x=date_col, y=count_col, title="Traffic Incidents", markers=True)
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
         
         # Traffic Heatmap
         if loc_col:
@@ -404,9 +404,9 @@ with tab1:
                 title="Traffic Incidents Heatmap by Location",
                 labels=dict(x="Location", y="Incident Count")
             )
-            st.plotly_chart(fig2, use_container_width=True)
+            st.plotly_chart(fig2, width="stretch")
             
-        st.dataframe(filtered_datasets["txdot"], use_container_width=True)
+        st.dataframe(filtered_datasets["txdot"], width="stretch")
     else:
         st.info("No traffic data available.")
 
@@ -422,7 +422,7 @@ with tab2:
                 fig = px.line(filtered_datasets["visits"], x=wk, y=vcol, color=venue_col, title="Foot Traffic by Business", markers=True)
             else:
                 fig = px.line(filtered_datasets["visits"], x=wk, y=vcol, title="Foot Traffic", markers=True)
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
         
         # Pie Chart for Visitor Distribution (Accurate Percentages)
         if venue_col:
@@ -434,12 +434,12 @@ with tab2:
             })
             # Format percentage to 1 decimal place
             pie_df['Percentage'] = pie_df['Percentage'].round(1)
-            fig2 = px.pie(pie_df, values='Visitor Count', names='Business', title="Visitor Distribution by Business", 
+            fig2 = px.pie(pie_df, values='Visitor Count', names='Business', title="Visitor Distribution by Business",
                          hover_data=['Percentage'], labels={'Percentage':'%'})
             fig2.update_traces(textinfo='percent+label', textfont_size=12)
-            st.plotly_chart(fig2, use_container_width=True)
+            st.plotly_chart(fig2, width="stretch")
             
-        st.dataframe(filtered_datasets["visits"], use_container_width=True)
+        st.dataframe(filtered_datasets["visits"], width="stretch")
     else:
         st.info("No foot traffic data available.")
 
@@ -455,7 +455,7 @@ with tab3:
                 fig = px.line(filtered_datasets["bike_ped"], x=date_col, y=count_col, color=loc_col, title="Bike/Ped Activity by Location", markers=True)
             else:
                 fig = px.line(filtered_datasets["bike_ped"], x=date_col, y=count_col, title="Bike/Ped Activity", markers=True)
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
         
         # Bike/Ped Heatmap
         if loc_col:
@@ -471,9 +471,9 @@ with tab3:
                 title="Bike/Ped Activity Heatmap by Location",
                 labels=dict(x="Location", y="Activity Count")
             )
-            st.plotly_chart(fig2, use_container_width=True)
+            st.plotly_chart(fig2, width="stretch")
             
-        st.dataframe(filtered_datasets["bike_ped"], use_container_width=True)
+        st.dataframe(filtered_datasets["bike_ped"], width="stretch")
     else:
         st.info("No bike/ped data available.")
 
@@ -487,12 +487,12 @@ with tab4:
         if cat_col:
             top_offenses = filtered_datasets["arrests"][cat_col].value_counts().head(10)
             fig = px.bar(x=top_offenses.values, y=top_offenses.index, orientation='h', title="Top Offense Categories")
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
         
         if loc_col:
             loc_counts = filtered_datasets["arrests"][loc_col].value_counts().head(10)
             fig2 = px.bar(x=loc_counts.values, y=loc_counts.index, orientation='h', title="Arrests by Location")
-            st.plotly_chart(fig2, use_container_width=True)
+            st.plotly_chart(fig2, width="stretch")
         
         # Safety Heatmap
         if loc_col:
@@ -508,9 +508,9 @@ with tab4:
                 title="Crime Heatmap by Location",
                 labels=dict(x="Location", y="Incident Count")
             )
-            st.plotly_chart(fig3, use_container_width=True)
+            st.plotly_chart(fig3, width="stretch")
             
-        st.dataframe(filtered_datasets["arrests"], use_container_width=True)
+        st.dataframe(filtered_datasets["arrests"], width="stretch")
     else:
         st.info("No arrest data available.")
 
@@ -524,12 +524,12 @@ with tab5:
         if req_col:
             top_reqs = filtered_datasets["service"][req_col].value_counts().head(10)
             fig3 = px.pie(values=top_reqs.values, names=top_reqs.index, title="311 Request Distribution")
-            st.plotly_chart(fig3, use_container_width=True)
+            st.plotly_chart(fig3, width="stretch")
         
         if loc_col:
             loc_reqs = filtered_datasets["service"][loc_col].value_counts().head(10)
             fig4 = px.bar(x=loc_reqs.values, y=loc_reqs.index, orientation='h', title="311 Requests by Location")
-            st.plotly_chart(fig4, use_container_width=True)
+            st.plotly_chart(fig4, width="stretch")
         
         # 311 Heatmap
         if loc_col:
@@ -545,9 +545,9 @@ with tab5:
                 title="311 Requests Heatmap by Location",
                 labels=dict(x="Location", y="Request Count")
             )
-            st.plotly_chart(fig5, use_container_width=True)
+            st.plotly_chart(fig5, width="stretch")
             
-        st.dataframe(filtered_datasets["service"], use_container_width=True)
+        st.dataframe(filtered_datasets["service"], width="stretch")
     else:
         st.info("No 311 request data available.")
 
@@ -559,7 +559,7 @@ with tab6:
     # Load the map image (Corrected path)
     map_image_path = Path(r"C:\Users\juhco\OneDrive\Documents\krowdguide-cleanfinal\data\deepellummap.jpg")
     if map_image_path.exists():
-        st.image(map_image_path, caption="Deep Ellum Housing TIF Area", use_column_width=True)
+        st.image(map_image_path, caption="Deep Ellum Housing TIF Area", width="stretch")
     else:
         st.warning(f"Map image '{map_image_path}' not found. Please verify the file path.")
 
@@ -570,7 +570,7 @@ with tab6:
             st.subheader("Top Arrest Locations")
             loc_counts = filtered_datasets["arrests"][loc_col].value_counts().head(10)
             fig = px.bar(x=loc_counts.values, y=loc_counts.index, orientation='h', title="Top 10 Arrest Locations")
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
         else:
             st.info("No location data found for arrests to display.")
     else:

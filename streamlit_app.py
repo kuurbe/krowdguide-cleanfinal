@@ -7,6 +7,7 @@ import pandas as pd
 import numpy as np
 import humanize
 import plotly.express as px
+import plotly.graph_objects as go
 from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import PolynomialFeatures
 from sklearn.pipeline import make_pipeline
@@ -81,6 +82,14 @@ st.markdown("""
         padding: 20px;
         margin: 10px 0;
         box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+    .golden-ticket {
+        background: linear-gradient(135deg, #f0c850, #d4af37);
+        color: white;
+        padding: 20px;
+        border-radius: 16px;
+        text-align: center;
+        margin: 20px 0;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -172,6 +181,9 @@ for key, df in datasets.items():
             filtered_datasets[key] = df
 
 # ------------------ Executive Dashboard ------------------
+# Golden Ticket Header
+st.markdown('<div class="golden-ticket"><h2>🌟 Deep Ellum: The Golden Ticket for Urban Investment</h2><p>Real-time intelligence for business growth, safety, and city planning</p></div>', unsafe_allow_html=True)
+
 # KPIs in polished cards
 col1, col2, col3, col4 = st.columns(4)
 
@@ -264,9 +276,22 @@ with tab2:
     if not filtered_datasets["txdot"].empty:
         date_col = detect_col(filtered_datasets["txdot"], "date")
         count_col = detect_col(filtered_datasets["txdot"], "incidents")
+        loc_col = detect_col(filtered_datasets["txdot"], "location", "area")
         if date_col and count_col:
             fig = px.line(filtered_datasets["txdot"], x=date_col, y=count_col, title="Traffic Incidents", markers=True)
             st.plotly_chart(fig, use_container_width=True)
+        
+        # Traffic Heatmap
+        if loc_col:
+            loc_counts = filtered_datasets["txdot"][loc_col].value_counts()
+            fig2 = px.density_heatmap(
+                x=[loc_counts.index] * len(loc_counts),
+                y=[loc_counts.values] * len(loc_counts),
+                title="Traffic Incidents Heatmap by Location",
+                labels=dict(x="Location", y="Incident Count")
+            )
+            st.plotly_chart(fig2, use_container_width=True)
+            
         st.dataframe(filtered_datasets["txdot"], use_container_width=True)
     else:
         st.info("No traffic data available.")
@@ -284,6 +309,18 @@ with tab3:
             else:
                 fig = px.line(filtered_datasets["visits"], x=wk, y=vcol, title="Foot Traffic", markers=True)
             st.plotly_chart(fig, use_container_width=True)
+        
+        # Foot Traffic Heatmap
+        if venue_col:
+            venue_counts = filtered_datasets["visits"][venue_col].value_counts()
+            fig2 = px.density_heatmap(
+                x=[venue_counts.index] * len(venue_counts),
+                y=[venue_counts.values] * len(venue_counts),
+                title="Foot Traffic Heatmap by Business",
+                labels=dict(x="Business", y="Visitor Count")
+            )
+            st.plotly_chart(fig2, use_container_width=True)
+            
         st.dataframe(filtered_datasets["visits"], use_container_width=True)
     else:
         st.info("No foot traffic data available.")
@@ -301,6 +338,18 @@ with tab4:
             else:
                 fig = px.line(filtered_datasets["bike_ped"], x=date_col, y=count_col, title="Bike/Ped Activity", markers=True)
             st.plotly_chart(fig, use_container_width=True)
+        
+        # Bike/Ped Heatmap
+        if loc_col:
+            loc_counts = filtered_datasets["bike_ped"][loc_col].value_counts()
+            fig2 = px.density_heatmap(
+                x=[loc_counts.index] * len(loc_counts),
+                y=[loc_counts.values] * len(loc_counts),
+                title="Bike/Ped Activity Heatmap by Location",
+                labels=dict(x="Location", y="Activity Count")
+            )
+            st.plotly_chart(fig2, use_container_width=True)
+            
         st.dataframe(filtered_datasets["bike_ped"], use_container_width=True)
     else:
         st.info("No bike/ped data available.")
@@ -322,6 +371,16 @@ with tab5:
             fig2 = px.bar(x=loc_counts.values, y=loc_counts.index, orientation='h', title="Arrests by Location")
             st.plotly_chart(fig2, use_container_width=True)
         
+        # Safety Heatmap
+        if loc_col:
+            fig3 = px.density_heatmap(
+                x=[filtered_datasets["arrests"][loc_col]] * len(filtered_datasets["arrests"]),
+                y=[filtered_datasets["arrests"].index] * len(filtered_datasets["arrests"]),
+                title="Crime Heatmap by Location",
+                labels=dict(x="Location", y="Incident Count")
+            )
+            st.plotly_chart(fig3, use_container_width=True)
+            
         st.dataframe(filtered_datasets["arrests"], use_container_width=True)
     else:
         st.info("No arrest data available.")
@@ -343,6 +402,16 @@ with tab6:
             fig4 = px.bar(x=loc_reqs.values, y=loc_reqs.index, orientation='h', title="311 Requests by Location")
             st.plotly_chart(fig4, use_container_width=True)
         
+        # 311 Heatmap
+        if loc_col:
+            fig5 = px.density_heatmap(
+                x=[filtered_datasets["service"][loc_col]] * len(filtered_datasets["service"]),
+                y=[filtered_datasets["service"].index] * len(filtered_datasets["service"]),
+                title="311 Requests Heatmap by Location",
+                labels=dict(x="Location", y="Request Count")
+            )
+            st.plotly_chart(fig5, use_container_width=True)
+            
         st.dataframe(filtered_datasets["service"], use_container_width=True)
     else:
         st.info("No 311 request data available.")

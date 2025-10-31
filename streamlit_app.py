@@ -89,6 +89,41 @@ st.markdown("""
         text-align: center;
         margin: 20px 0;
     }
+    /* Weather Widget Styling */
+    .weather-widget {
+        background: rgba(0, 0, 0, 0.7); /* Semi-transparent black background */
+        color: white; /* White text */
+        padding: 15px;
+        border-radius: 10px;
+        border: 1px solid #ccc;
+        max-width: 300px;
+    }
+    .weather-widget h4 {
+        color: #ffffff;
+        margin-top: 0;
+    }
+    .weather-widget p {
+        margin: 5px 0;
+    }
+    /* Simplified Tab Style */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 2px;
+    }
+    .stTabs [data-baseweb="tab"] {
+        height: 50px;
+        white-space: nowrap;
+        background-color: #f0f0f0;
+        border-radius: 8px 8px 0 0;
+        padding: 0 16px;
+        font-weight: bold;
+    }
+    .stTabs [data-baseweb="tab"]:hover {
+        background-color: #e0e0e0;
+    }
+    .stTabs [data-baseweb="tab"][aria-selected="true"] {
+        background-color: #3182ce;
+        color: white;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -109,8 +144,9 @@ def load_csv(path: Path) -> pd.DataFrame:
         if str(path).endswith(".gz"):
             return pd.read_csv(path, compression="infer", low_memory=False, on_bad_lines="skip")
         return pd.read_csv(path, low_memory=False, on_bad_lines="skip")
-    except Exception:
-        return pd.read_csv(path, low_memory=False, on_bad_lines="skip", engine="python")
+    except Exception as e:
+        st.warning(f"Warning: Could not load {path.name}. Error: {e}")
+        return pd.DataFrame()
 
 def detect_col(df: pd.DataFrame, *keys):
     if df.empty:
@@ -147,6 +183,7 @@ datasets = {
 # ------------------ Sidebar Filters ------------------
 st.sidebar.header("Filters")
 date_range = st.sidebar.date_input("Select Date Range", value=[datetime.now() - timedelta(days=365), datetime.now()])
+year_filter = st.sidebar.selectbox("Filter by Year", ["All", "2023", "2024", "2025"], index=0)
 
 # Process datasets based on filters — ensure all keys exist
 filtered_datasets = {}
@@ -161,8 +198,16 @@ for key, df in datasets.items():
         df = df.copy()
         df[date_col] = pd.to_datetime(df[date_col], errors='coerce')
         df = df.dropna(subset=[date_col])
+        
+        # Apply date range filter
         start_date, end_date = date_range
-        filtered_datasets[key] = df[(df[date_col] >= pd.Timestamp(start_date)) & (df[date_col] <= pd.Timestamp(end_date))]
+        df_filtered = df[(df[date_col] >= pd.Timestamp(start_date)) & (df[date_col] <= pd.Timestamp(end_date))]
+        
+        # Apply year filter if selected
+        if year_filter != "All":
+            df_filtered = df_filtered[df_filtered[date_col].dt.year == int(year_filter)]
+        
+        filtered_datasets[key] = df_filtered
     else:
         filtered_datasets[key] = df
 
@@ -172,13 +217,20 @@ if not filtered_datasets["arrests"].empty:
     sensitive_cols = []
     for col in filtered_datasets["arrests"].columns:
         col_lower = col.lower()
-        if any(sensitive in col_lower for sensitive in ["name", "race", "ethnicity", "address", "officer"]):
+        if any(sensitive in col_lower for sensitive in ["name", "race", "ethnicity", "address", "officer", "person"]):
             sensitive_cols.append(col)
     
-    # Remove sensitive columns
+    # Replace sensitive data with placeholders
     for col in sensitive_cols:
         if col in filtered_datasets["arrests"].columns:
-            filtered_datasets["arrests"] = filtered_datasets["arrests"].drop(columns=[col])
+            # For name/address fields, replace with "Anonymous" or "Redacted"
+            if col_lower in ["name", "officer", "person"]:
+                filtered_datasets["arrests"][col] = "Anonymous"
+            # For other sensitive data, replace with 0 or NaN if numeric, or "N/A" if string
+            elif pd.api.types.is_numeric_dtype(filtered_datasets["arrests"][col]):
+                filtered_datasets["arrests"][col] = 0
+            else:
+                filtered_datasets["arrests"][col] = "N/A"
 
 # ------------------ Executive Dashboard ------------------
 # Golden Ticket Header
@@ -248,18 +300,19 @@ if not filtered_datasets["arrests"].empty:
 # Insight Box with Black Text
 st.markdown('<div class="insight-box"><span style="color: black;">💡 <strong>Insight:</strong> Real-time urban analytics for Deep Ellum — enabling data-driven decisions for businesses, city planners, and investors.</span></div>', unsafe_allow_html=True)
 
-# Weather Widget (Python-based)
+# Weather Widget (Python-based with enhanced details)
 st.subheader("Current Dallas Weather")
 try:
     # Use coordinates for Dallas
     latitude = 32.78
     longitude = -96.80
-    api_url = f"https://api.open-meteo.com/v1/forecast?latitude={latitude}&longitude={longitude}&current_weather=true&timezone=America/Chicago"
+    api_url = f"https://api.open-meteo.com/v1/forecast?latitude={latitude}&longitude={longitude}&current_weather=true&daily=temperature_2m_max,temperature_2m_min,precipitation_probability,weathercode,sunrise,sunset&timezone=America/Chicago"
 
     response = requests.get(api_url, timeout=10)
     response.raise_for_status()
     data = response.json()
     current = data.get('current_weather', {})
+    daily = data.get('daily', {})
     
     temp = current.get('temperature', 'N/A')
     wind_speed = current.get('windspeed', 'N/A')
@@ -298,13 +351,25 @@ try:
         99: "Thunderstorm with heavy hail"
     }
     condition_desc = weather_codes.get(condition, f"Code {condition}")
+    
+    # Get today's forecast
+    today_max = daily.get('temperature_2m_max', [])[0] if daily.get('temperature_2m_max') else 'N/A'
+    today_min = daily.get('temperature_2m_min', [])[0] if daily.get('temperature_2m_min') else 'N/A'
+    sunrise = daily.get('sunrise', [])[0] if daily.get('sunrise') else 'N/A'
+    sunset = daily.get('sunset', [])[0] if daily.get('sunset') else 'N/A'
+    humidity = daily.get('relative_humidity_2m', [])[0] if daily.get('relative_humidity_2m') else 'N/A'
+    precipitation_prob = daily.get('precipitation_probability', [])[0] if daily.get('precipitation_probability') else 'N/A'
 
     st.markdown(f"""
-    <div style="background: #f0f9ff; padding: 15px; border-radius: 10px; border: 1px solid #bee3f8;">
+    <div class="weather-widget">
         <h4>🌤️ Current Conditions</h4>
         <p><strong>Temperature:</strong> {temp}°C</p>
         <p><strong>Condition:</strong> {condition_desc}</p>
         <p><strong>Wind:</strong> {wind_speed} m/s from {wind_dir}°</p>
+        <p><strong>Today's Forecast:</strong> High {today_max}°C, Low {today_min}°C</p>
+        <p><strong>Sunrise/Sunset:</strong> {sunrise} / {sunset}</p>
+        <p><strong>Humidity:</strong> {humidity}%</p>
+        <p><strong>Precipitation Prob.:</strong> {precipitation_prob}%</p>
     </div>
     """, unsafe_allow_html=True)
 
@@ -359,14 +424,19 @@ with tab2:
                 fig = px.line(filtered_datasets["visits"], x=wk, y=vcol, title="Foot Traffic", markers=True)
             st.plotly_chart(fig, use_container_width=True)
         
-        # Replace Heatmap with Pie Chart for Visitor Distribution
+        # Pie Chart for Visitor Distribution (Accurate Percentages)
         if venue_col:
             venue_counts = filtered_datasets["visits"][venue_col].value_counts()
             pie_df = pd.DataFrame({
                 'Business': venue_counts.index,
-                'Visitor Count': venue_counts.values
+                'Visitor Count': venue_counts.values,
+                'Percentage': (venue_counts.values / venue_counts.sum()) * 100  # Calculate percentage
             })
-            fig2 = px.pie(pie_df, values='Visitor Count', names='Business', title="Visitor Distribution by Business")
+            # Format percentage to 1 decimal place
+            pie_df['Percentage'] = pie_df['Percentage'].round(1)
+            fig2 = px.pie(pie_df, values='Visitor Count', names='Business', title="Visitor Distribution by Business", 
+                         hover_data=['Percentage'], labels={'Percentage':'%'})
+            fig2.update_traces(textinfo='percent+label', textfont_size=12)
             st.plotly_chart(fig2, use_container_width=True)
             
         st.dataframe(filtered_datasets["visits"], use_container_width=True)
@@ -484,32 +554,25 @@ with tab5:
 # Map View (New Tab)
 with tab6:
     st.subheader("Deep Ellum Interactive Map")
-    st.write("This map overlays data points (e.g., incidents, visits) onto the Deep Ellum area. You can customize which dataset to display.")
+    st.write("This map displays the Deep Ellum area. You can overlay different data types on it.")
 
-    # Load the map image (assuming it's named 'deepellum_map.png' in your data folder)
-    map_image_path = DATA_DIR / "deepellum_map.png"
+    # Load the map image (Corrected path)
+    map_image_path = Path(r"C:\Users\juhco\OneDrive\Documents\krowdguide-cleanfinal\data\deepellummap.jpg")
     if map_image_path.exists():
         st.image(map_image_path, caption="Deep Ellum Housing TIF Area", use_column_width=True)
     else:
-        st.warning("Map image 'deepellum_map.png' not found in the data folder. Please add it for the map view to function correctly.")
+        st.warning(f"Map image '{map_image_path}' not found. Please verify the file path.")
 
-    # Example: Displaying a heatmap of arrest locations on the map
+    # Example: Displaying a bar chart of arrest locations as a fallback
     if not filtered_datasets["arrests"].empty:
         loc_col = detect_col(filtered_datasets["arrests"], "location", "area", "address")
         if loc_col:
-            # This is a simplified example. For a real heatmap, you would need to map location strings to coordinates.
-            # Since we don't have precise coordinates, we'll show a bar chart of locations as a fallback.
-            st.subheader("Arrest Locations (Fallback View)")
+            st.subheader("Top Arrest Locations")
             loc_counts = filtered_datasets["arrests"][loc_col].value_counts().head(10)
             fig = px.bar(x=loc_counts.values, y=loc_counts.index, orientation='h', title="Top 10 Arrest Locations")
             st.plotly_chart(fig, use_container_width=True)
-            
-            # Placeholder for future geo-visualization
-            st.info("A true geographic heatmap requires mapping location names to GPS coordinates. "
-                   "This feature can be developed further by creating a lookup table that maps street names from your data "
-                   "to their corresponding latitudes and longitudes, which can then be plotted on this map.")
         else:
-            st.info("No location data found for arrests to display on the map.")
+            st.info("No location data found for arrests to display.")
     else:
         st.info("No arrest data available for the map view.")
 

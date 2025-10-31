@@ -284,9 +284,14 @@ with tab2:
         # Traffic Heatmap
         if loc_col:
             loc_counts = filtered_datasets["txdot"][loc_col].value_counts()
+            heatmap_df = pd.DataFrame({
+                'Location': loc_counts.index,
+                'Incident Count': loc_counts.values
+            })
             fig2 = px.density_heatmap(
-                x=[loc_counts.index] * len(loc_counts),
-                y=[loc_counts.values] * len(loc_counts),
+                data_frame=heatmap_df,
+                x='Location',
+                y='Incident Count',
                 title="Traffic Incidents Heatmap by Location",
                 labels=dict(x="Location", y="Incident Count")
             )
@@ -313,9 +318,14 @@ with tab3:
         # Foot Traffic Heatmap
         if venue_col:
             venue_counts = filtered_datasets["visits"][venue_col].value_counts()
+            heatmap_df = pd.DataFrame({
+                'Business': venue_counts.index,
+                'Visitor Count': venue_counts.values
+            })
             fig2 = px.density_heatmap(
-                x=[venue_counts.index] * len(venue_counts),
-                y=[venue_counts.values] * len(venue_counts),
+                data_frame=heatmap_df,
+                x='Business',
+                y='Visitor Count',
                 title="Foot Traffic Heatmap by Business",
                 labels=dict(x="Business", y="Visitor Count")
             )
@@ -342,9 +352,14 @@ with tab4:
         # Bike/Ped Heatmap
         if loc_col:
             loc_counts = filtered_datasets["bike_ped"][loc_col].value_counts()
+            heatmap_df = pd.DataFrame({
+                'Location': loc_counts.index,
+                'Activity Count': loc_counts.values
+            })
             fig2 = px.density_heatmap(
-                x=[loc_counts.index] * len(loc_counts),
-                y=[loc_counts.values] * len(loc_counts),
+                data_frame=heatmap_df,
+                x='Location',
+                y='Activity Count',
                 title="Bike/Ped Activity Heatmap by Location",
                 labels=dict(x="Location", y="Activity Count")
             )
@@ -373,9 +388,15 @@ with tab5:
         
         # Safety Heatmap
         if loc_col:
+            loc_counts = filtered_datasets["arrests"][loc_col].value_counts()
+            heatmap_df = pd.DataFrame({
+                'Location': loc_counts.index,
+                'Incident Count': loc_counts.values
+            })
             fig3 = px.density_heatmap(
-                x=[filtered_datasets["arrests"][loc_col]] * len(filtered_datasets["arrests"]),
-                y=[filtered_datasets["arrests"].index] * len(filtered_datasets["arrests"]),
+                data_frame=heatmap_df,
+                x='Location',
+                y='Incident Count',
                 title="Crime Heatmap by Location",
                 labels=dict(x="Location", y="Incident Count")
             )
@@ -404,9 +425,15 @@ with tab6:
         
         # 311 Heatmap
         if loc_col:
+            loc_counts = filtered_datasets["service"][loc_col].value_counts()
+            heatmap_df = pd.DataFrame({
+                'Location': loc_counts.index,
+                'Request Count': loc_counts.values
+            })
             fig5 = px.density_heatmap(
-                x=[filtered_datasets["service"][loc_col]] * len(filtered_datasets["service"]),
-                y=[filtered_datasets["service"].index] * len(filtered_datasets["service"]),
+                data_frame=heatmap_df,
+                x='Location',
+                y='Request Count',
                 title="311 Requests Heatmap by Location",
                 labels=dict(x="Location", y="Request Count")
             )

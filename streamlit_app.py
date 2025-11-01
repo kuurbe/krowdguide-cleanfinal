@@ -42,12 +42,42 @@ if not DATA_PATH.exists():
     st.error("❌ GeoJSON file not found. Please run your Jupyter notebook to generate `data/heatmap_points.geojson`.")
     st.stop()
 
-gdf = gpd.read_file(DATA_PATH)
+try:
+    gdf = gpd.read_file(DATA_PATH)
+except Exception as e:
+    st.error(f"❌ Failed to load GeoJSON: {e}")
+    st.stop()
+
+# Enforce reasonable limit to avoid memory issues on Render
+MAX_POINTS = 3000
+if len(gdf) > MAX_POINTS:
+    st.warning(f"⚠️ Dataset truncated to {MAX_POINTS:,} points for performance.")
+    gdf = gdf.sample(n=MAX_POINTS, random_state=42).copy()
+
 st.success(f"✅ Loaded {len(gdf):,} points from GeoJSON")
 
-# Validate coordinate bounds
+# Validate coordinate bounds (Deep Ellum area)
 if "latitude" in gdf.columns and "longitude" in gdf.columns:
-    gdf = gdf[(gdf["latitude"].between(32.778, 32.786)) & (gdf["longitude"].between(-96.790, -96.775))]
+    gdf = gdf[
+        (gdf["latitude"].between(32.778, 32.786)) &
+        (gdf["longitude"].between(-96.790, -96.775))
+    ].copy()
+else:
+    # Fallback: extract from geometry if columns missing
+    gdf["latitude"] = gdf.geometry.y
+    gdf["longitude"] = gdf.geometry.x
+
+# Ensure all geometries are Points
+if not all(gdf.geometry.type == "Point"):
+    st.error("❌ GeoJSON must contain only Point geometries.")
+    st.stop()
+
+# Generate deterministic foot traffic if missing (for demo consistency)
+if "foot_traffic" not in gdf.columns:
+    # Use hash of coordinates for repeatable pseudo-random value
+    gdf["foot_traffic"] = (
+        (gdf.geometry.x * 1e6).astype(int) + (gdf.geometry.y * 1e6).astype(int)
+    ) % 700 + 800
 
 # ------------------ SIDEBAR ------------------
 st.sidebar.header("Map Filters")
@@ -63,24 +93,41 @@ min_opacity = st.sidebar.slider("Min Opacity", 0.0, 1.0, 0.35)
 # ------------------ MAP ------------------
 st.subheader("🗺 Interactive Deep Ellum Map")
 
-m = folium.Map(location=[32.782, -96.782], zoom_start=15, control_scale=True, tiles="CartoDB positron")
+m = folium.Map(
+    location=[32.782, -96.782],
+    zoom_start=15,
+    control_scale=True,
+    tiles="CartoDB positron"
+)
 
 # Heatmap Layer
 if show_heatmap and score_field:
-    heat_points = gdf[["latitude", "longitude", score_field]].dropna().values.tolist()
-    HeatMap(heat_points, radius=radius, blur=blur, min_opacity=min_opacity).add_to(m)
+    heat_data = gdf[["latitude", "longitude", score_field]].dropna()
+    if not heat_data.empty:
+        heat_points = heat_data.values.tolist()
+        HeatMap(
+            heat_points,
+            radius=radius,
+            blur=blur,
+            min_opacity=min_opacity,
+            gradient={0.4: '#3B82F6', 0.65: '#F59E0B', 1: '#EF4444'}
+        ).add_to(m)
 
 # Cluster Marker Layer
 if show_clusters:
     cluster_layer = MarkerCluster(name="Predictive Points").add_to(m)
     for _, row in gdf.iterrows():
-        lat, lon = float(row.geometry.y), float(row.geometry.x)
+        try:
+            lat, lon = float(row["latitude"]), float(row["longitude"])
+        except (ValueError, TypeError):
+            continue  # skip invalid rows
+
         popup_content = f"""
         <div style='min-width:280px; font-family:"Times New Roman", serif;'>
           <b>📍 Coordinates:</b> {lat:.3f}, {lon:.3f}<br>
           <b>Cluster:</b> {row.get('cluster', 'N/A')}<br>
           <b>Crime Score:</b> {row.get('crime_score', 'N/A')}<br>
-          <b>Predicted Foot Traffic:</b> ~{np.random.randint(800,1500)} / day<br>
+          <b>Predicted Foot Traffic:</b> ~{row.get('foot_traffic', 'N/A')} / day<br>
         </div>
         """
         folium.CircleMarker(
@@ -104,7 +151,7 @@ legend_html = """
 st.markdown(legend_html, unsafe_allow_html=True)
 
 # Display Map
-st_folium(m, width="stretch", height=700)
+st_folium(m, width="100%", height=700)
 
 # ------------------ INSIGHT PANELS ------------------
 st.markdown('<div class="gold"><b>🌟 Predictive Overview</b></div>', unsafe_allow_html=True)
@@ -117,22 +164,25 @@ with col2:
     total_points = len(gdf)
     st.markdown(f'<div class="card"><b>Active Data Points</b><br><span style="font-size:1.4rem;">{total_points:,}</span></div>', unsafe_allow_html=True)
 with col3:
-    clusters = len(gdf["cluster"].unique()) if "cluster" in gdf else "N/A"
+    clusters = len(gdf["cluster"].dropna().unique()) if "cluster" in gdf else "N/A"
     st.markdown(f'<div class="card"><b>Identified Clusters</b><br><span style="font-size:1.4rem;">{clusters}</span></div>', unsafe_allow_html=True)
 
 # ------------------ OPTIONAL: ANALYSIS TAB ------------------
 st.subheader("📊 Cluster Crime Distribution")
 
 if cluster_field and score_field:
-    chart_df = gdf.groupby(cluster_field)[score_field].mean().reset_index()
-    fig = px.bar(
-        chart_df,
-        x=cluster_field,
-        y=score_field,
-        color=score_field,
-        title="Average Crime Score by Cluster",
-    )
-    st.plotly_chart(fig, width="stretch")
+    chart_df = gdf.dropna(subset=[cluster_field, score_field]).groupby(cluster_field)[score_field].mean().reset_index()
+    if not chart_df.empty:
+        fig = px.bar(
+            chart_df,
+            x=cluster_field,
+            y=score_field,
+            color=score_field,
+            color_continuous_scale=["#3B82F6", "#F59E0B", "#EF4444"],
+            title="Average Crime Score by Cluster",
+        )
+        fig.update_layout(font_family='"Times New Roman", serif')
+        st.plotly_chart(fig, use_container_width=True)
 
 # ------------------ FOOTER ------------------
 st.divider()

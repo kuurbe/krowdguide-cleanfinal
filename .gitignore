@@ -4,4 +4,6 @@ __pycache__/
 .streamlit/secrets.toml
 data/*.gz
 data/*.zip
-data/*.geojson
+data/*
+!data/heatmap_points.geojson
+

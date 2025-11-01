@@ -1,0 +1,15 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-96.7835, 32.7825] },
+      "properties": { "crime_score": 12, "requests": 8, "foot_traffic": 57 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-96.7801, 32.7842] },
+      "properties": { "crime_score": 4, "requests": 3, "foot_traffic": 82 }
+    }
+  ]
+}

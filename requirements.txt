@@ -1,7 +1,5 @@
-streamlit
-pandas
-numpy
-plotly
-requests
-folium
-streamlit-folium
+jupyter
+ipykernel
+notebook
+geopandas
+scikit-learn

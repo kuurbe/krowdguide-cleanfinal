@@ -1,6 +1,7 @@
 streamlit
-jupyter
-ipykernel
-notebook
+streamlit-folium
+folium
 geopandas
-scikit-learn
+plotly
+pandas
+numpy
